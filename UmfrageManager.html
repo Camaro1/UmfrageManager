@@ -4,7 +4,7 @@
      Licensed under the MIT License. See LICENSE file for details. -->
 <html lang="de">
 <head>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-S51VYUB9RDgsoGEjgOnzSUcCN6z2gSqFlIAEqhiO410=' 'sha256-rh7rXMk50JQ6n75wVZDQSkqyAnfzbdo2n+kcpNXxh40='; style-src 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; connect-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-S51VYUB9RDgsoGEjgOnzSUcCN6z2gSqFlIAEqhiO410=' 'sha256-zIALOUHZFEyf/9jyGFWhnsi+URJYaOtoouK9ud1KpPk='; style-src 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; connect-src 'none'">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Umfrage-Manager</title>
@@ -1739,6 +1739,18 @@ function exportResultYaml() {
   triggerDownload(yml, 'auswertung.yaml', 'application/x-yaml;charset=utf-8');
 }
 
+// Schützt eine CSV-Zelle vor Formula Injection (CSV/Excel Injection, CWE-1236):
+// Werte aus importierten Antwort-Dateien sind nicht vertrauenswürdig und könnten
+// mit '=', '+', '-', '@', Tab oder CR beginnen, was Tabellenkalkulationen als
+// Formel auswerten. Ein führendes Apostroph neutralisiert das (OWASP-Empfehlung).
+function csvSafeCell(value) {
+  let s = String(value);
+  if (/^[=+\-@\t\r]/.test(s)) {
+    s = "'" + s;
+  }
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+
 // Auswertung als CSV exportieren (Semikolon, UTF-8 BOM für Excel)
 function exportResultCsv() {
   if (importedAnswers.length === 0 || !auswertungSurvey) return;
@@ -1759,9 +1771,9 @@ function exportResultCsv() {
     rows.push(row);
   });
 
-  // CSV-String aufbauen (Semikolon-getrennt, Felder in Anführungszeichen)
+  // CSV-String aufbauen (Semikolon-getrennt, Felder in Anführungszeichen, formel-sicher)
   const csv = '﻿' + rows.map(row =>
-    row.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(';')
+    row.map(cell => csvSafeCell(cell)).join(';')
   ).join('\r\n');
 
   triggerDownload(csv, 'auswertung.csv', 'text/csv;charset=utf-8');
