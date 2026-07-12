@@ -1,0 +1,357 @@
+# Risk Scoring Audit Trail — Umfrage-Manager
+# Methodology: OWASP Risk Rating, extended with project attacker model.
+# Likelihood/Impact = AVERAGE of 8 factors (0-9). Rating: 0-3 LOW, 3.1-6 MEDIUM, 6.1-9 HIGH.
+# Total Risk from 3x3 matrix. Project-wide fixed values: Awareness=3, Intrusion Detection=9.
+# Status: Phases 2 & 3 complete. mitigations_referenced populated (Phase 3). residual_risk carries
+# explicit acceptance decisions made in this session; numeric residual scoring is a Phase 4 task.
+# "RO" ratings are risk-owner determinations below the mechanical average (fixed Intrusion
+# Detection=9 structurally lifts likelihood averages); see per-threat reasoning. T-04 = withdrawn.
+#
+# Mitigation catalog (full text in threatmodel_umfragemanager_phase3_mitigationen.html, Table 10):
+#   M-01 Plattform-Nutzungsempfehlungen (Operator)            [Preventive]      T-02, T-05
+#   M-02 Datensparsamkeit im Umfragedesign                    [Preventive]      T-02, T-14
+#   M-03 Import-Validierung gegen Umfragedefinition [FUTURE]  [Prev./Detective] T-03, T-06, T-10
+#   M-04 Client-Löschfunktionen (btn-clear-survey/-all) [IMPL] [Corrective]     T-07
+#   M-05 Integritäts-/Supply-Chain-Härtung (Hash-CSP,          [Preventive]      T-08, T-09
+#        kein eval, inline vendoring) [IMPLEMENTED]
+#   M-06 XSS-/Injection-Schutz (textContent-Invariante,        [Preventive]      T-11, T-15
+#        escapeHtml, csvSafeCell) [IMPLEMENTED]
+#   M-07 Prozesskontrolle js-yaml-Neuvendoring                [Preventive]      T-09
+#   M-08 Operator-Endpoint-Härtung [OUT OF SCOPE / env.]      [Preventive]      T-12, T-14
+
+- threat_id: "T-01"
+  threat_name: "Unattributable answer.yaml upload (shared password, no audit trail)"
+  attacker_type: "Authenticated (Malicious) User"
+  trust_boundary: "TB-2 · Passwortgeschützter Dateiaustausch"
+  affected_asset_primary: "A01 Umfrage-Antwortdaten"
+  affected_assets_downstream: []
+  stride: [Spoofing, Repudiation]
+  likelihood:
+    threat_agent: {skill_level: 4, motive: 6, opportunity: 4, size: 5}
+    vulnerability: {ease_of_discovery: 8, ease_of_exploit: 8, awareness: 3, intrusion_detection: 9}
+    score: 5.9
+    rating: "MEDIUM"
+  impact:
+    technical: {loss_of_confidentiality: 1, loss_of_integrity: 2, loss_of_availability: 1, loss_of_accountability: 8}
+    business: {reputation_damage: 3, financial_damage: 3, non_compliance: 4, privacy_violation: 2}
+    business_impact_reasoning: "Passwort B is a group secret with no per-respondent identity and the app keeps no audit trail, so uploads cannot be attributed or proven. The repudiation itself does not disclose or corrupt data (C/I/A low), but Loss of Accountability is high. Business factors modest — no direct data breach."
+    score: 3.0
+    rating: "LOW"
+  total_risk: "LOW"
+  residual_risk: "ACCEPTED (no control; attribution not required at this stage — matches the pre-tool Excel-exchange baseline; per-respondent identity/logging noted as a possible future requirement)"
+  mitigations_referenced: []
+  remarks: "Design gap under-represented by the number. Risk accepted this session; a client-side audit log was rejected as operator-forgeable and unnecessary now. Twin of T-13 (operator-side)."
+
+- threat_id: "T-02"
+  threat_name: "PII disclosure of answer.yaml on the exchange platform"
+  attacker_type: "Unauthenticated Internet Attacker (platform compromise)"
+  trust_boundary: "TB-2 · Passwortgeschützter Dateiaustausch"
+  affected_asset_primary: "A01 Umfrage-Antwortdaten (C=Very High)"
+  affected_assets_downstream: []
+  stride: [Information Disclosure]
+  likelihood:
+    threat_agent: {skill_level: 6, motive: 4, opportunity: 1, size: 2}
+    vulnerability: {ease_of_discovery: 2, ease_of_exploit: 2, awareness: 3, intrusion_detection: 9}
+    score: 3.6
+    rating: "LOW"
+  impact:
+    technical: {loss_of_confidentiality: 8, loss_of_integrity: 1, loss_of_availability: 1, loss_of_accountability: 6}
+    business: {reputation_damage: 7, financial_damage: 7, non_compliance: 8, privacy_violation: 8}
+    business_impact_reasoning: "A01 C=Very High (7-9), answers may contain PII → high confidentiality/GDPR exposure. I/A rated N → low. Impact averages to MEDIUM."
+    score: 5.8
+    rating: "MEDIUM"
+  total_risk: "LOW"
+  residual_risk: null
+  mitigations_referenced: ["M-01", "M-02"]
+  remarks: "Risk-owner (RO) determination. Passwort B is UPLOAD-ONLY to a write-only drop; uploaded files are not readable/listable by password holders — only the operator retrieves them via their own platform account. Reading answers therefore requires compromising the out-of-scope exchange platform itself. Opportunity 5->1, Size 9->2, Ease-of-Discovery/Exploit ->2 vs. the original (mistaken read-access) framing. Mechanical average 3.6 is borderline MEDIUM, held above LOW almost entirely by the fixed Intrusion Detection=9 which reflects THIS app's absent logging and is arguably irrelevant to a threat realized on the platform. Recorded LOW per risk owner."
+
+- threat_id: "T-03"
+  threat_name: "Forged/manipulated answer.yaml uploaded by password holder"
+  attacker_type: "Authenticated (Malicious) User"
+  trust_boundary: "TB-2 · Passwortgeschützter Dateiaustausch"
+  affected_asset_primary: "A01 Umfrage-Antwortdaten"
+  affected_assets_downstream: ["A02 Umfragedefinition"]
+  stride: [Tampering]
+  likelihood:
+    threat_agent: {skill_level: 4, motive: 6, opportunity: 4, size: 5}
+    vulnerability: {ease_of_discovery: 7, ease_of_exploit: 7, awareness: 3, intrusion_detection: 9}
+    score: 5.6
+    rating: "MEDIUM"
+  impact:
+    technical: {loss_of_confidentiality: 1, loss_of_integrity: 4, loss_of_availability: 1, loss_of_accountability: 5}
+    business: {reputation_damage: 3, financial_damage: 2, non_compliance: 2, privacy_violation: 2}
+    business_impact_reasoning: "A single forged submission among 40 gives limited integrity impact (A01 I=N). A malicious holder can submit several, but result corruption remains bounded and detectable on review."
+    score: 2.5
+    rating: "LOW"
+  total_risk: "LOW"
+  residual_risk: null
+  mitigations_referenced: ["M-03"]
+  remarks: "Uploading is exactly what Passwort B permits. Real backstop is import-side validation (M-03, future). The malformed-structure variant feeds the Manager import (see T-10)."
+
+- threat_id: "T-04"
+  threat_name: "Delete/overwrite/flood answer files on the drop (WITHDRAWN)"
+  attacker_type: "Authenticated (Malicious) User"
+  trust_boundary: "TB-2 · Passwortgeschützter Dateiaustausch"
+  affected_asset_primary: "A01 Umfrage-Antwortdaten"
+  affected_assets_downstream: []
+  stride: [Denial of Service]
+  status: "WITHDRAWN"
+  likelihood: null
+  impact: null
+  total_risk: null
+  residual_risk: null
+  mitigations_referenced: []
+  remarks: "Withdrawn per risk owner: Passwort B grants UPLOAD-ONLY (append) access to a write-only drop; holders cannot read, list, overwrite, or delete existing files. The delete/overwrite premise does not hold. (Same upload-only property as T-02.) Retained for audit completeness."
+
+- threat_id: "T-05"
+  threat_name: "Survey definition disclosure via leaked Passwort A download"
+  attacker_type: "Unauthenticated Internet Attacker"
+  trust_boundary: "TB-2 · Passwortgeschützter Dateiaustausch"
+  affected_asset_primary: "A02 Umfragedefinition (C=Normal)"
+  affected_assets_downstream: []
+  stride: [Information Disclosure]
+  likelihood:
+    threat_agent: {skill_level: 6, motive: 4, opportunity: 5, size: 9}
+    vulnerability: {ease_of_discovery: 6, ease_of_exploit: 6, awareness: 3, intrusion_detection: 9}
+    score: 6.0
+    rating: "MEDIUM"
+  impact:
+    technical: {loss_of_confidentiality: 3, loss_of_integrity: 1, loss_of_availability: 1, loss_of_accountability: 3}
+    business: {reputation_damage: 3, financial_damage: 1, non_compliance: 3, privacy_violation: 1}
+    business_impact_reasoning: "Passwort A is a read-capable download credential. Disclosed asset is the survey structure (A02, C=Normal) — no answer data, no PII. Low across the board."
+    score: 2.0
+    rating: "LOW"
+  total_risk: "LOW"
+  residual_risk: null
+  mitigations_referenced: ["M-01"]
+  remarks: "Contrast T-02: Passwort A IS read/download-capable, unlike upload-only Passwort B."
+
+- threat_id: "T-06"
+  threat_name: "Malicious respondent forges answer content (client-side validation bypass)"
+  attacker_type: "Authenticated (Malicious) User"
+  trust_boundary: "TB-3 · Respondenten-Rechner"
+  affected_asset_primary: "A01 Umfrage-Antwortdaten"
+  affected_assets_downstream: ["A02 Umfragedefinition"]
+  stride: [Tampering, Elevation of Privilege]
+  likelihood:
+    threat_agent: {skill_level: 4, motive: 6, opportunity: 9, size: 5}
+    vulnerability: {ease_of_discovery: 8, ease_of_exploit: 8, awareness: 3, intrusion_detection: 9}
+    score: 6.5
+    rating: "HIGH"
+  impact:
+    technical: {loss_of_confidentiality: 1, loss_of_integrity: 5, loss_of_availability: 2, loss_of_accountability: 6}
+    business: {reputation_damage: 3, financial_damage: 2, non_compliance: 4, privacy_violation: 1}
+    business_impact_reasoning: "Respondent fully controls their own client → client-side validation is not a security control. Impact bounded: forged/out-of-range values affect the respondent's own submission(s); A01 I=N limits result-integrity damage. Loss of Accountability elevated (shared password)."
+    score: 3.0
+    rating: "LOW"
+  total_risk: "MEDIUM"
+  residual_risk: "Partly accepted — a self-service survey inherently lets a respondent answer as they wish; bounded to 1 of 40 responses. M-03 (import validation) catches structural/range anomalies."
+  mitigations_referenced: ["M-03"]
+  remarks: "HIGH likelihood x LOW impact = MEDIUM. Number over-weights reach."
+
+- threat_id: "T-07"
+  threat_name: "Compromised respondent machine exfiltrates own answers + survey definition"
+  attacker_type: "Compromised Client (Browser)"
+  trust_boundary: "TB-3 · Respondenten-Rechner"
+  affected_asset_primary: "A01 Umfrage-Antwortdaten (single respondent)"
+  affected_assets_downstream: ["A02 Umfragedefinition"]
+  stride: [Information Disclosure]
+  likelihood:
+    threat_agent: {skill_level: 7, motive: 7, opportunity: 9, size: 4}
+    vulnerability: {ease_of_discovery: 5, ease_of_exploit: 5, awareness: 3, intrusion_detection: 9}
+    score: 6.1
+    rating: "HIGH"
+  impact:
+    technical: {loss_of_confidentiality: 5, loss_of_integrity: 1, loss_of_availability: 1, loss_of_accountability: 2}
+    business: {reputation_damage: 4, financial_damage: 2, non_compliance: 4, privacy_violation: 5}
+    business_impact_reasoning: "A01 C=Very High anchor, but scope is limited to a single respondent's own submission stored in their own browser (not the aggregate dataset — that is T-12). PII exposure for one person."
+    score: 3.0
+    rating: "LOW"
+  total_risk: "MEDIUM"
+  residual_risk: "Environmental — accepted. A compromised respondent endpoint is outside the app's control (mirrors T-12). M-04 (implemented delete controls) + M-02 (data minimization) reduce the data-at-rest window."
+  mitigations_referenced: ["M-04", "M-02"]
+  remarks: "HIGH likelihood x LOW impact = MEDIUM."
+
+- threat_id: "T-08"
+  threat_name: "Local tampering with the generated client HTML before/while opening"
+  attacker_type: "Compromised Client (Browser)"
+  trust_boundary: "TB-3 · Respondenten-Rechner"
+  affected_asset_primary: "A03 Anwendungslogik/Quellcode"
+  affected_assets_downstream: ["A02 Umfragedefinition"]
+  stride: [Tampering]
+  likelihood:
+    threat_agent: {skill_level: 7, motive: 7, opportunity: 9, size: 4}
+    vulnerability: {ease_of_discovery: 4, ease_of_exploit: 4, awareness: 3, intrusion_detection: 9}
+    score: 5.9
+    rating: "MEDIUM"
+  impact:
+    technical: {loss_of_confidentiality: 1, loss_of_integrity: 5, loss_of_availability: 2, loss_of_accountability: 3}
+    business: {reputation_damage: 3, financial_damage: 3, non_compliance: 3, privacy_violation: 2}
+    business_impact_reasoning: "Affects only the local copy on one compromised machine (A02/A03 integrity=High). Hash-based CSP blocks injected scripts at runtime, but an attacker who edits the file can also recompute the hash — so CSP is not a barrier to local tampering. Impact remains local."
+    score: 2.8
+    rating: "LOW"
+  total_risk: "LOW"
+  residual_risk: "Environmental — accepted. Local file tampering on a compromised machine; M-05 (hash-CSP) is defense-in-depth only."
+  mitigations_referenced: ["M-05"]
+  remarks: null
+
+- threat_id: "T-09"
+  threat_name: "Supply-chain injection via a future re-vendored js-yaml"
+  attacker_type: "Supply Chain Attacker"
+  trust_boundary: "TB-1 · Operator-Rechner (also affects TB-3)"
+  affected_asset_primary: "A03 Anwendungslogik/Quellcode"
+  affected_assets_downstream: ["A01 Umfrage-Antwortdaten", "A02 Umfragedefinition"]
+  stride: [Tampering, Information Disclosure, Elevation of Privilege]
+  likelihood:
+    threat_agent: {skill_level: 8, motive: 7, opportunity: 2, size: 2}
+    vulnerability: {ease_of_discovery: 2, ease_of_exploit: 3, awareness: 3, intrusion_detection: 9}
+    score: 4.5
+    rating: "LOW"
+  impact:
+    technical: {loss_of_confidentiality: 8, loss_of_integrity: 8, loss_of_availability: 5, loss_of_accountability: 7}
+    business: {reputation_damage: 7, financial_damage: 7, non_compliance: 8, privacy_violation: 8}
+    business_impact_reasoning: "Malicious code running in the Manager (and every generated client) executes with full page context → can exfiltrate ALL answer data (A01, C=Very High) and tamper results/logic. Worst-case confidentiality + integrity."
+    score: 7.0
+    rating: "HIGH"
+  total_risk: "MEDIUM"
+  residual_risk: null
+  mitigations_referenced: ["M-05", "M-07"]
+  remarks: "Relocated from TB-3 per risk owner (same vendored js-yaml runs in both documents). Likelihood LOW is an RO determination: js-yaml is NOT a live dependency — vendored inline, no CDN, no build pipeline, and only ~2-4 more re-vendoring events are expected over the system's life, collapsing the attack window. Mechanical average 4.5 (MEDIUM) reduced to LOW on that basis. M-05 (existing) + M-07 (process control) are the defenses."
+
+- threat_id: "T-10"
+  threat_name: "Malformed/crafted answer.yaml exploits Manager import"
+  attacker_type: "Authenticated (Malicious) User"
+  trust_boundary: "TB-1 · Operator-Rechner"
+  affected_asset_primary: "A01 Umfrage-Antwortdaten"
+  affected_assets_downstream: ["A02 Umfragedefinition"]
+  stride: [Tampering, Denial of Service]
+  likelihood:
+    threat_agent: {skill_level: 4, motive: 6, opportunity: 1, size: 5}
+    vulnerability: {ease_of_discovery: 5, ease_of_exploit: 4, awareness: 3, intrusion_detection: 9}
+    score: 4.6
+    rating: "MEDIUM"
+  impact:
+    technical: {loss_of_confidentiality: 1, loss_of_integrity: 4, loss_of_availability: 4, loss_of_accountability: 2}
+    business: {reputation_damage: 3, financial_damage: 2, non_compliance: 3, privacy_violation: 1}
+    business_impact_reasoning: "js-yaml 4.x default-safe schema instantiates no arbitrary types → no RCE. Residual risk is unvalidated SHAPE: malformed structure could corrupt in-memory state or crash the Auswertung view. Recoverable (remove file / reload)."
+    score: 2.5
+    rating: "LOW"
+  total_risk: "LOW"
+  residual_risk: null
+  mitigations_referenced: ["M-03"]
+  remarks: "Primary attacker-input surface (importAnswerFiles L1538 / jsyaml.load). Existing partial control: js-yaml default-safe schema (no RCE). M-03 (import schema validation, future) addresses the unvalidated shape."
+
+- threat_id: "T-11"
+  threat_name: "CSV/Excel formula injection via imported answer values (CWE-1236)"
+  attacker_type: "Authenticated (Malicious) User"
+  trust_boundary: "TB-1 · Operator-Rechner"
+  affected_asset_primary: "A01 Umfrage-Antwortdaten"
+  affected_assets_downstream: []
+  stride: [Tampering, Elevation of Privilege]
+  likelihood:
+    threat_agent: {skill_level: 4, motive: 6, opportunity: 1, size: 5}
+    vulnerability: {ease_of_discovery: 6, ease_of_exploit: 1, awareness: 3, intrusion_detection: 9}
+    score: 4.4
+    rating: "MEDIUM"
+  impact:
+    technical: {loss_of_confidentiality: 1, loss_of_integrity: 1, loss_of_availability: 1, loss_of_accountability: 1}
+    business: {reputation_damage: 1, financial_damage: 1, non_compliance: 1, privacy_violation: 1}
+    business_impact_reasoning: "RESIDUAL (mitigation in place). csvSafeCell() neutralizes leading =,+,-,@,tab,CR with a prepended apostrophe → payload does not execute when the operator opens the CSV. Residual impact minimal."
+    score: 1.0
+    rating: "LOW"
+  total_risk: "LOW"
+  residual_risk: "Mitigated by implemented control M-06 (csvSafeCell)."
+  mitigations_referenced: ["M-06"]
+  remarks: "MITIGATED. Pre-mitigation this was HIGH (command execution on the operator machine via spreadsheet formula/DDE). Control implemented in UmfrageManager.html L1746, commit 11bbf96."
+
+- threat_id: "T-12"
+  threat_name: "Compromised operator machine reads/tampers the entire answer dataset"
+  attacker_type: "Compromised Client (Browser)"
+  trust_boundary: "TB-1 · Operator-Rechner"
+  affected_asset_primary: "A01 Umfrage-Antwortdaten (entire dataset, C=Very High)"
+  affected_assets_downstream: ["A02 Umfragedefinition", "A03 Anwendungslogik/Quellcode"]
+  stride: [Spoofing, Tampering, Information Disclosure]
+  likelihood:
+    threat_agent: {skill_level: 7, motive: 7, opportunity: 9, size: 4}
+    vulnerability: {ease_of_discovery: 5, ease_of_exploit: 5, awareness: 3, intrusion_detection: 9}
+    score: 6.1
+    rating: "HIGH"
+  impact:
+    technical: {loss_of_confidentiality: 8, loss_of_integrity: 6, loss_of_availability: 4, loss_of_accountability: 7}
+    business: {reputation_damage: 7, financial_damage: 7, non_compliance: 8, privacy_violation: 8}
+    business_impact_reasoning: "Crown jewel: every survey's answers (A01, C=Very High) sit unencrypted in one operator profile → full-dataset PII disclosure, plus tampering of stored results and app logic. Worst-case across confidentiality and integrity."
+    score: 6.9
+    rating: "HIGH"
+  total_risk: "CRITICAL"
+  residual_risk: "ACCEPTED (environmental). A fully compromised operator machine defeats any purely client-side application regardless of its own design (consistent with CLAUDE.md's accepted unencrypted-localStorage posture). M-08 (out-of-scope endpoint hardening) lowers but does not remove the residual."
+  mitigations_referenced: ["M-08"]
+  remarks: "Risk owner keeps CRITICAL and ACCEPTS it as an environmental assumption. M-08 is explicitly out of scope (not part of the app)."
+
+- threat_id: "T-13"
+  threat_name: "No audit trail — operator-side actions unattributable"
+  attacker_type: "Authenticated (Malicious) User"
+  trust_boundary: "TB-1 · Operator-Rechner"
+  affected_asset_primary: "A01 Umfrage-Antwortdaten"
+  affected_assets_downstream: ["A02 Umfragedefinition"]
+  stride: [Repudiation]
+  likelihood:
+    threat_agent: {skill_level: 4, motive: 6, opportunity: 4, size: 5}
+    vulnerability: {ease_of_discovery: 9, ease_of_exploit: 9, awareness: 3, intrusion_detection: 9}
+    score: 6.1
+    rating: "HIGH"
+  impact:
+    technical: {loss_of_confidentiality: 1, loss_of_integrity: 2, loss_of_availability: 1, loss_of_accountability: 8}
+    business: {reputation_damage: 1, financial_damage: 1, non_compliance: 1, privacy_violation: 1}
+    business_impact_reasoning: "The app logs nothing (import/export/edit), so data-handling actions cannot be reconstructed or attributed (Loss of Accountability high). No direct C/I/A loss from the gap itself."
+    score: 2.0
+    rating: "LOW"
+  total_risk: "MEDIUM"
+  residual_risk: "ACCEPTED (no control; not required at this stage — matches pre-tool Excel baseline; possible future enhancement). Operator-side counterpart of T-01."
+  mitigations_referenced: []
+  remarks: "HIGH likelihood x LOW impact = MEDIUM. Design gap under-represented by the impact number."
+
+- threat_id: "T-14"
+  threat_name: "Answer data stored unencrypted at rest (localStorage + exported files)"
+  attacker_type: "Compromised Client (Browser) / local access"
+  trust_boundary: "TB-1 · Operator-Rechner"
+  affected_asset_primary: "A01 Umfrage-Antwortdaten"
+  affected_assets_downstream: []
+  stride: [Information Disclosure]
+  likelihood:
+    threat_agent: {skill_level: 3, motive: 5, opportunity: 1, size: 3}
+    vulnerability: {ease_of_discovery: 5, ease_of_exploit: 5, awareness: 3, intrusion_detection: 9}
+    score: 4.3
+    rating: "MEDIUM"
+  impact:
+    technical: {loss_of_confidentiality: 4, loss_of_integrity: 1, loss_of_availability: 1, loss_of_accountability: 2}
+    business: {reputation_damage: 3, financial_damage: 2, non_compliance: 4, privacy_violation: 4}
+    business_impact_reasoning: "Incremental exposure BEYOND the full-compromise case (T-12): shared/unattended profile, backups, disk theft. On a single-operator local tool the realistic additional disclosure is bounded, so impact scored LOW."
+    score: 2.6
+    rating: "LOW"
+  total_risk: "LOW"
+  residual_risk: "ACCEPTED (documented design characteristic per CLAUDE.md/README). M-02 (data minimization) + M-08 (out-of-scope endpoint hardening) reduce residual."
+  mitigations_referenced: ["M-02", "M-08"]
+  remarks: "Unencrypted localStorage + plaintext CSV/YAML on disk is a known, accepted characteristic. Largely subsumed by T-12."
+
+- threat_id: "T-15"
+  threat_name: "Stored XSS via imported survey/answer data rendered into the DOM"
+  attacker_type: "Authenticated (Malicious) User / Compromised Client"
+  trust_boundary: "TB-1 · Operator-Rechner (rendering; also generated client)"
+  affected_asset_primary: "A03 Anwendungslogik/Quellcode"
+  affected_assets_downstream: ["A01 Umfrage-Antwortdaten", "A02 Umfragedefinition"]
+  stride: [Tampering, Information Disclosure, Elevation of Privilege]
+  likelihood:
+    threat_agent: {skill_level: 4, motive: 6, opportunity: 1, size: 5}
+    vulnerability: {ease_of_discovery: 6, ease_of_exploit: 1, awareness: 3, intrusion_detection: 9}
+    score: 4.4
+    rating: "MEDIUM"
+  impact:
+    technical: {loss_of_confidentiality: 1, loss_of_integrity: 1, loss_of_availability: 1, loss_of_accountability: 1}
+    business: {reputation_damage: 1, financial_damage: 1, non_compliance: 1, privacy_violation: 1}
+    business_impact_reasoning: "RESIDUAL (mitigation in place). Script injection is blocked at the sink: all dynamic rendering uses textContent/createElement; the sole raw-HTML exception (buildClientHtml) uses escapeHtml() on interpolated strings + </script> neutralization for embedded JSON; hash-based CSP is defense-in-depth. Residual impact minimal."
+    score: 1.0
+    rating: "LOW"
+  total_risk: "LOW"
+  residual_risk: "Mitigated by implemented control M-06 (rendering invariant + escapeHtml + </script> neutralization; M-05 hash-CSP as defense-in-depth)."
+  mitigations_referenced: ["M-06", "M-05"]
+  remarks: "MITIGATED, modelled parallel to T-11. Pre-mitigation this would be CRITICAL (arbitrary script exec in operator context = T-12 reach via a crafted survey/answer file)."

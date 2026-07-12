@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox="-20 50 1088.35 772.67">
+  <defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" /></marker></defs>
+  <rect x="-20" y="50" width="1088.35" height="772.67" fill="#ffffff" />
+  <rect x="320" y="70" width="280" height="270" rx="12" fill="none" stroke="#e05a5a" stroke-width="1" stroke-dasharray="8 4" />
+  <rect x="738.35" y="309.39" width="280" height="120" rx="12" fill="none" stroke="#e05a5a" stroke-width="1" stroke-dasharray="8 4" />
+  <rect x="320" y="414" width="280" height="270" rx="12" fill="none" stroke="#e05a5a" stroke-width="1" stroke-dasharray="8 4" />
+  <text x="330" y="85.35" font-family="Arial, sans-serif" font-size="11" fill="#e05a5a" text-anchor="start"><tspan x="330" dy="0">TB-1 - Operator-Rechner</tspan></text>
+  <text x="748.35" y="324.74" font-family="Arial, sans-serif" font-size="11" fill="#e05a5a" text-anchor="start"><tspan x="748.35" dy="0">TB-2 - Passwortgesch. Dateiaustausch</tspan></text>
+  <text x="330" y="429.35" font-family="Arial, sans-serif" font-size="11" fill="#e05a5a" text-anchor="start"><tspan x="330" dy="0">TB-3 - Respondenten-Rechner</tspan></text>
+  <ellipse cx="70" cy="146" rx="16" ry="16" fill="#d8e8f5" stroke="#2a5db0" stroke-width="1" />
+  <rect x="37" y="162" width="66" height="34" rx="12" fill="#d8e8f5" stroke="#2a5db0" stroke-width="1" />
+  <text x="0" y="211.35" font-family="Arial, sans-serif" font-size="11" fill="#2a5db0" text-anchor="start"><tspan x="0" dy="0">Umfrage-</tspan><tspan x="0" dy="13.75">Ersteller</tspan></text>
+  <ellipse cx="70.99" cy="515.51" rx="16" ry="16" fill="#d8e8f5" stroke="#2a5db0" stroke-width="1" />
+  <rect x="37.99" y="531.51" width="66" height="34" rx="12" fill="#d8e8f5" stroke="#2a5db0" stroke-width="1" />
+  <text x="0.99" y="580.86" font-family="Arial, sans-serif" font-size="11" fill="#2a5db0" text-anchor="start"><tspan x="0.99" dy="0">Befragte</tspan><tspan x="0.99" dy="13.75">(40x, Passwort-</tspan><tspan x="0.99" dy="13.75">Gruppenzugang)</tspan></text>
+  <rect x="340" y="100" width="240" height="50" rx="12" fill="#fde8e0" stroke="#993c1d" stroke-width="1" />
+  <text x="460" y="129.2" font-family="Arial, sans-serif" font-size="12" fill="#993c1d" text-anchor="middle"><tspan x="460" dy="0">UmfrageManager.html</tspan></text>
+  <rect x="340" y="260" width="240" height="50" rx="12" fill="#ece8fa" stroke="#534ab7" stroke-width="1" />
+  <rect x="340" y="276" width="240" height="2" rx="0" fill="#534ab7" stroke="#534ab7" stroke-width="1" />
+  <text x="460" y="288.85" font-family="Arial, sans-serif" font-size="11" fill="#534ab7" text-anchor="middle"><tspan x="460" dy="0">localStorage (Operator)</tspan></text>
+  <rect x="758.35" y="339.39" width="240" height="70.01" rx="12" fill="#f5f5f5" stroke="#aaaaaa" stroke-width="1" stroke-dasharray="8 4" />
+  <text x="878.35" y="371.37" font-family="Arial, sans-serif" font-size="11" fill="#aaaaaa" text-anchor="middle"><tspan x="878.35" dy="0">Datei-Austausch-</tspan><tspan x="878.35" dy="13.75">Plattform (Out-of-Scope)</tspan></text>
+  <rect x="340" y="444" width="240" height="50" rx="12" fill="#fde8e0" stroke="#993c1d" stroke-width="1" />
+  <text x="460" y="473.2" font-family="Arial, sans-serif" font-size="12" fill="#993c1d" text-anchor="middle"><tspan x="460" dy="0">Generated Client HTML</tspan></text>
+  <rect x="340" y="604" width="240" height="50" rx="12" fill="#ece8fa" stroke="#534ab7" stroke-width="1" />
+  <rect x="340" y="620" width="240" height="2" rx="0" fill="#534ab7" stroke="#534ab7" stroke-width="1" />
+  <text x="460" y="632.85" font-family="Arial, sans-serif" font-size="11" fill="#534ab7" text-anchor="middle"><tspan x="460" dy="0">localStorage (Respondent)</tspan></text>
+  <polyline points="107.89,171.1 164.05,171.1 164.05,116.71 335.01,116.71" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="460,150 460,260" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="584.98,114.76 706.31,114.76 706.31,350.65 753.91,350.65" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="753.96,398.88 228.26,398.88 228.26,401.65 97.79,401.65 97.79,523.02" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="103.99,548.51 149.57,548.51 149.57,469.01 340,469.01" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="460,494 460,604" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="42.83,528.62 42.83,383.06 753.36,383.06" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="749.21,367.31 629.6,367.31 629.6,137.75 584.97,137.75" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="335.01,133.2 221.5,133.2 221.5,189.7 107.79,189.7" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <rect x="23.33" y="712.67" width="24" height="16" rx="8" fill="#d8e8f5" stroke="#2a5db0" stroke-width="1" />
+  <text x="57.33" y="725.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="57.33" dy="0">Akteur (im Scope)</tspan></text>
+  <rect x="423.33" y="712.67" width="24" height="16" rx="8" fill="#fde8e0" stroke="#993c1d" stroke-width="1" />
+  <text x="457.33" y="725.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="457.33" dy="0">Prozess</tspan></text>
+  <rect x="23.33" y="742.67" width="24" height="16" rx="8" fill="#f5f5f5" stroke="#aaaaaa" stroke-width="1" stroke-dasharray="8 4" />
+  <text x="57.33" y="755.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="57.33" dy="0">Prozess (Out-of-Scope)</tspan></text>
+  <rect x="423.33" y="742.67" width="24" height="16" rx="8" fill="#ece8fa" stroke="#534ab7" stroke-width="1" />
+  <text x="457.33" y="755.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="457.33" dy="0">Datenspeicher (persistent)</tspan></text>
+  <rect x="23.33" y="772.67" width="60" height="30" rx="12" fill="none" stroke="#e05a5a" stroke-width="1" stroke-dasharray="8 4" />
+  <text x="93.33" y="787.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="93.33" dy="0">Vertrauensgrenze</tspan></text>
+  <polyline points="423.33,787.67 473.33,787.67" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <text x="483.33" y="787.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="483.33" dy="0">Datenfluss (in-scope)</tspan></text>
+  <polyline points="330.01,482.7 240.63,482.7 240.63,558.29 108.83,558.29" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <rect x="162.75" y="102.21" width="63" height="29" fill="#ffffff" /><text x="194.25" y="112.71" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="194.25" dy="0">erstellen/</tspan><tspan x="194.25" dy="12.5">bearbeiten</tspan></text>
+  <rect x="414.75" y="196.75" width="90.5" height="16.5" fill="#ffffff" /><text x="460" y="207.25" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="460" dy="0">speichern/laden</tspan></text>
+  <rect x="658.31" y="181.34" width="96" height="29" fill="#ffffff" /><text x="706.31" y="191.84" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="706.31" dy="0">Client-HTML</tspan><tspan x="706.31" dy="12.5">hochladen (PW A)</tspan></text>
+  <rect x="304.81" y="384.38" width="118" height="29" fill="#ffffff" /><text x="363.81" y="394.88" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="363.81" dy="0">Client-HTML</tspan><tspan x="363.81" dy="12.5">herunterladen (PW A)</tspan></text>
+  <rect x="150.74" y="454.51" width="63" height="29" fill="#ffffff" /><text x="182.24" y="465.01" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="182.24" dy="0">Antworten</tspan><tspan x="182.24" dy="12.5">ausfuellen</tspan></text>
+  <rect x="414.75" y="540.75" width="90.5" height="16.5" fill="#ffffff" /><text x="460" y="551.25" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="460" dy="0">speichern/laden</tspan></text>
+  <rect x="277.32" y="368.56" width="96" height="29" fill="#ffffff" /><text x="325.32" y="379.06" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="325.32" dy="0">answer.yaml</tspan><tspan x="325.32" dy="12.5">hochladen (PW B)</tspan></text>
+  <rect x="595.35" y="275.52" width="68.5" height="29" fill="#ffffff" /><text x="629.6" y="286.02" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="629.6" dy="0">answer.yaml</tspan><tspan x="629.6" dy="12.5">abrufen</tspan></text>
+  <rect x="179" y="147.05" width="85" height="29" fill="#ffffff" /><text x="221.5" y="157.55" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="221.5" dy="0">CSV-/YAML-</tspan><tspan x="221.5" dy="12.5">Export (lokal)</tspan></text>
+  <rect x="200.88" y="527.21" width="79.5" height="29" fill="#ffffff" /><text x="240.63" y="537.71" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="240.63" dy="0">answer.yaml</tspan><tspan x="240.63" dy="12.5">herunterladen</tspan></text>
+</svg>

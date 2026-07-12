@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bedrohungsmodell Umfrage-Manager — Phase 1: Systembeschreibung</title>
+<style>
+  body {
+    font-family: Georgia, serif;
+    font-size: 15px;
+    line-height: 1.7;
+    color: #1a1a1a;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 48px 40px 80px;
+  }
+  h1 {
+    font-size: 28px;
+    font-weight: normal;
+    border-bottom: 2px solid #0d0d0d;
+    padding-bottom: 8px;
+  }
+  h2 {
+    font-size: 20px;
+    font-weight: normal;
+    font-family: Arial, sans-serif;
+    border-bottom: 1px solid #d0d0d0;
+    padding-bottom: 5px;
+    margin-top: 40px;
+  }
+  h3 {
+    font-size: 14px;
+    font-weight: bold;
+    font-family: Arial, sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #555;
+    margin-top: 28px;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-family: Arial, sans-serif;
+    font-size: 12.5px;
+    margin-top: 12px;
+  }
+  th {
+    background: #f0f0f0;
+    font-weight: bold;
+    border: 1px solid #ccc;
+    padding: 7px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  td {
+    border: 1px solid #ddd;
+    padding: 7px 10px;
+    vertical-align: top;
+  }
+  tbody tr:nth-child(even) {
+    background: #fafafa;
+  }
+  .tb-row td {
+    background: #f0f4f8;
+    font-weight: bold;
+    color: #2a4a6b;
+    border-top: 2px solid #c0cfe0;
+  }
+  .caption {
+    font-size: 12px;
+    color: #777;
+    font-style: italic;
+    margin-top: 6px;
+    margin-bottom: 24px;
+  }
+  .dfd-note {
+    font-size: 12.5px;
+    color: #555;
+    background: #f7f7f7;
+    border-left: 3px solid #c0cfe0;
+    padding: 8px 12px;
+    margin-top: 12px;
+  }
+  .dfd-figure { text-align: center; margin-top: 16px; }
+  .dfd-figure svg { max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+
+<p style="font-family:Arial,sans-serif;font-size:12px;color:#777;margin:0 0 4px;">Bedrohungsmodell · Umfrage-Manager</p>
+
+<h1>1. Woran arbeiten wir?</h1>
+
+<h2>1.1 Beschreibung der Anwendung</h2>
+<p>
+  Der <strong>Umfrage-Manager</strong> ist ein lokal ausgeführtes, aus einer einzigen HTML-Datei bestehendes Werkzeug
+  zum Erstellen und Verwalten von Umfragen, das einen bisher manuellen, Excel-basierten Arbeitsablauf ersetzt. Es gibt
+  keine serverseitige Anwendungslogik, keinen Build-Schritt und zur Laufzeit keine externe Netzwerkabhängigkeit — die
+  Anwendung läuft vollständig offline aus dem Dateisystem (<code>file://</code>).
+</p>
+<p>
+  <strong>Nutzer:</strong> Der <em>Umfrage-Ersteller</em> (Operator) öffnet <code>UmfrageManager.html</code> lokal,
+  erstellt und bearbeitet Umfragen, exportiert/importiert YAML und wertet Antworten aus. Die <em>Befragten</em> (fest
+  40 pro Umfrage, als Gruppe per gemeinsamem Passwort authentifiziert, nicht individuell) laden die generierte
+  Client-HTML von einem passwortgeschützten öffentlichen Link herunter, füllen sie im eigenen Browser aus und laden
+  ihre Antwort-YAML in eine passwortgeschützte Dateiablage hoch. Volumen: ca. 2 Umfragen/Monat, 40 Befragte/Umfrage.
+</p>
+<p>
+  <strong>Komponenten:</strong> <code>UmfrageManager.html</code> (Umfrage-CRUD, YAML-Ein-/Ausgabe, Client-Generator,
+  Auswertung/CSV-Export); die generierte Client-HTML (Ausgabe von <code>buildClientHtml()</code>); die inline
+  eingebettete Bibliothek js-yaml 4.1.0 in beiden Dokumenten. <strong>Datenspeicher:</strong> der localStorage des
+  Managers (<code>umfrageManager.&lt;uuid&gt;.*</code>) und der localStorage des Clients
+  (<code>umfrageClient.&lt;uuid&gt;.*</code>, im Browser des jeweiligen Befragten).
+</p>
+<p>
+  <strong>Zwei-HTML-Datei-Austauschmuster (statt eines Servers):</strong> Der Manager exportiert eine Umfrage als YAML
+  und generiert eine zweite, vollständig eigenständige Client-HTML für die Befragten. Diese exportieren ihre Antworten
+  als YAML, die der Operator wieder importiert und aggregiert (Auswertung, CSV-Export). Der kritische Angreifer-
+  Eingabepfad ist die von Befragten kontrollierte <code>answer.yaml</code>, die über
+  <code>importAnswerFiles()</code>/<code>jsyaml.load()</code> in den Manager gelangt.
+</p>
+<p>
+  <strong>Technologie-Stack:</strong> Vanilla JavaScript, js-yaml 4.1.0 (inline vendored), Browser-APIs
+  (localStorage, crypto.subtle, crypto.randomUUID, Blob, FileReader), hash-basierter Content-Security-Policy in beiden
+  Dokumenten.
+</p>
+<p>
+  <strong>Vertrauensgrenzen:</strong>
+</p>
+<ul>
+  <li><strong>TB-1 · Operator-Rechner:</strong> <code>UmfrageManager.html</code> und dessen localStorage.</li>
+  <li><strong>TB-2 · Passwortgeschützter Dateiaustausch:</strong> öffentlicher Download-Link (Client-HTML, Passwort A)
+    und Datei-Ablage (Antwort-YAML-Upload, Passwort B). Gemeinsames Gruppen-Geheimnis, keine individuelle Identität.
+    Die Plattform selbst ist außerhalb des Scopes (Blackbox); die sie kreuzenden Datenflüsse sind jedoch in-scope.</li>
+  <li><strong>TB-3 · Respondenten-Rechner:</strong> die generierte Client-HTML und deren eigener localStorage.</li>
+</ul>
+<p>
+  <strong>Passwort-Modell (wichtig für die Bewertung):</strong> Passwort A gewährt <em>Download-Zugriff</em> auf die
+  Client-HTML (lesefähig). Passwort B gewährt <em>ausschließlich Upload-Zugriff</em> auf eine schreibgeschützte Ablage
+  — Inhaber können anfügen, aber weder lesen, auflisten, überschreiben noch löschen; nur der Operator ruft die Dateien
+  über sein eigenes authentifiziertes Plattform-Konto ab.
+</p>
+
+<h2>1.2 Datenflussdiagramm</h2>
+<div class="dfd-figure">
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox="-20 50 1088.35 772.67">
+  <defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" /></marker></defs>
+  <rect x="-20" y="50" width="1088.35" height="772.67" fill="#ffffff" />
+  <rect x="320" y="70" width="280" height="270" rx="12" fill="none" stroke="#e05a5a" stroke-width="1" stroke-dasharray="8 4" />
+  <rect x="738.35" y="309.39" width="280" height="120" rx="12" fill="none" stroke="#e05a5a" stroke-width="1" stroke-dasharray="8 4" />
+  <rect x="320" y="414" width="280" height="270" rx="12" fill="none" stroke="#e05a5a" stroke-width="1" stroke-dasharray="8 4" />
+  <text x="330" y="85.35" font-family="Arial, sans-serif" font-size="11" fill="#e05a5a" text-anchor="start"><tspan x="330" dy="0">TB-1 - Operator-Rechner</tspan></text>
+  <text x="748.35" y="324.74" font-family="Arial, sans-serif" font-size="11" fill="#e05a5a" text-anchor="start"><tspan x="748.35" dy="0">TB-2 - Passwortgesch. Dateiaustausch</tspan></text>
+  <text x="330" y="429.35" font-family="Arial, sans-serif" font-size="11" fill="#e05a5a" text-anchor="start"><tspan x="330" dy="0">TB-3 - Respondenten-Rechner</tspan></text>
+  <ellipse cx="70" cy="146" rx="16" ry="16" fill="#d8e8f5" stroke="#2a5db0" stroke-width="1" />
+  <rect x="37" y="162" width="66" height="34" rx="12" fill="#d8e8f5" stroke="#2a5db0" stroke-width="1" />
+  <text x="0" y="211.35" font-family="Arial, sans-serif" font-size="11" fill="#2a5db0" text-anchor="start"><tspan x="0" dy="0">Umfrage-</tspan><tspan x="0" dy="13.75">Ersteller</tspan></text>
+  <ellipse cx="70.99" cy="515.51" rx="16" ry="16" fill="#d8e8f5" stroke="#2a5db0" stroke-width="1" />
+  <rect x="37.99" y="531.51" width="66" height="34" rx="12" fill="#d8e8f5" stroke="#2a5db0" stroke-width="1" />
+  <text x="0.99" y="580.86" font-family="Arial, sans-serif" font-size="11" fill="#2a5db0" text-anchor="start"><tspan x="0.99" dy="0">Befragte</tspan><tspan x="0.99" dy="13.75">(40x, Passwort-</tspan><tspan x="0.99" dy="13.75">Gruppenzugang)</tspan></text>
+  <rect x="340" y="100" width="240" height="50" rx="12" fill="#fde8e0" stroke="#993c1d" stroke-width="1" />
+  <text x="460" y="129.2" font-family="Arial, sans-serif" font-size="12" fill="#993c1d" text-anchor="middle"><tspan x="460" dy="0">UmfrageManager.html</tspan></text>
+  <rect x="340" y="260" width="240" height="50" rx="12" fill="#ece8fa" stroke="#534ab7" stroke-width="1" />
+  <rect x="340" y="276" width="240" height="2" rx="0" fill="#534ab7" stroke="#534ab7" stroke-width="1" />
+  <text x="460" y="288.85" font-family="Arial, sans-serif" font-size="11" fill="#534ab7" text-anchor="middle"><tspan x="460" dy="0">localStorage (Operator)</tspan></text>
+  <rect x="758.35" y="339.39" width="240" height="70.01" rx="12" fill="#f5f5f5" stroke="#aaaaaa" stroke-width="1" stroke-dasharray="8 4" />
+  <text x="878.35" y="371.37" font-family="Arial, sans-serif" font-size="11" fill="#aaaaaa" text-anchor="middle"><tspan x="878.35" dy="0">Datei-Austausch-</tspan><tspan x="878.35" dy="13.75">Plattform (Out-of-Scope)</tspan></text>
+  <rect x="340" y="444" width="240" height="50" rx="12" fill="#fde8e0" stroke="#993c1d" stroke-width="1" />
+  <text x="460" y="473.2" font-family="Arial, sans-serif" font-size="12" fill="#993c1d" text-anchor="middle"><tspan x="460" dy="0">Generated Client HTML</tspan></text>
+  <rect x="340" y="604" width="240" height="50" rx="12" fill="#ece8fa" stroke="#534ab7" stroke-width="1" />
+  <rect x="340" y="620" width="240" height="2" rx="0" fill="#534ab7" stroke="#534ab7" stroke-width="1" />
+  <text x="460" y="632.85" font-family="Arial, sans-serif" font-size="11" fill="#534ab7" text-anchor="middle"><tspan x="460" dy="0">localStorage (Respondent)</tspan></text>
+  <polyline points="107.89,171.1 164.05,171.1 164.05,116.71 335.01,116.71" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="460,150 460,260" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="584.98,114.76 706.31,114.76 706.31,350.65 753.91,350.65" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="753.96,398.88 228.26,398.88 228.26,401.65 97.79,401.65 97.79,523.02" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="103.99,548.51 149.57,548.51 149.57,469.01 340,469.01" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="460,494 460,604" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="42.83,528.62 42.83,383.06 753.36,383.06" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="749.21,367.31 629.6,367.31 629.6,137.75 584.97,137.75" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="335.01,133.2 221.5,133.2 221.5,189.7 107.79,189.7" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <rect x="23.33" y="712.67" width="24" height="16" rx="8" fill="#d8e8f5" stroke="#2a5db0" stroke-width="1" />
+  <text x="57.33" y="725.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="57.33" dy="0">Akteur (im Scope)</tspan></text>
+  <rect x="423.33" y="712.67" width="24" height="16" rx="8" fill="#fde8e0" stroke="#993c1d" stroke-width="1" />
+  <text x="457.33" y="725.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="457.33" dy="0">Prozess</tspan></text>
+  <rect x="23.33" y="742.67" width="24" height="16" rx="8" fill="#f5f5f5" stroke="#aaaaaa" stroke-width="1" stroke-dasharray="8 4" />
+  <text x="57.33" y="755.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="57.33" dy="0">Prozess (Out-of-Scope)</tspan></text>
+  <rect x="423.33" y="742.67" width="24" height="16" rx="8" fill="#ece8fa" stroke="#534ab7" stroke-width="1" />
+  <text x="457.33" y="755.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="457.33" dy="0">Datenspeicher (persistent)</tspan></text>
+  <rect x="23.33" y="772.67" width="60" height="30" rx="12" fill="none" stroke="#e05a5a" stroke-width="1" stroke-dasharray="8 4" />
+  <text x="93.33" y="787.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="93.33" dy="0">Vertrauensgrenze</tspan></text>
+  <polyline points="423.33,787.67 473.33,787.67" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <text x="483.33" y="787.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="483.33" dy="0">Datenfluss (in-scope)</tspan></text>
+  <polyline points="330.01,482.7 240.63,482.7 240.63,558.29 108.83,558.29" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <rect x="162.75" y="102.21" width="63" height="29" fill="#ffffff" /><text x="194.25" y="112.71" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="194.25" dy="0">erstellen/</tspan><tspan x="194.25" dy="12.5">bearbeiten</tspan></text>
+  <rect x="414.75" y="196.75" width="90.5" height="16.5" fill="#ffffff" /><text x="460" y="207.25" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="460" dy="0">speichern/laden</tspan></text>
+  <rect x="658.31" y="181.34" width="96" height="29" fill="#ffffff" /><text x="706.31" y="191.84" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="706.31" dy="0">Client-HTML</tspan><tspan x="706.31" dy="12.5">hochladen (PW A)</tspan></text>
+  <rect x="304.81" y="384.38" width="118" height="29" fill="#ffffff" /><text x="363.81" y="394.88" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="363.81" dy="0">Client-HTML</tspan><tspan x="363.81" dy="12.5">herunterladen (PW A)</tspan></text>
+  <rect x="150.74" y="454.51" width="63" height="29" fill="#ffffff" /><text x="182.24" y="465.01" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="182.24" dy="0">Antworten</tspan><tspan x="182.24" dy="12.5">ausfuellen</tspan></text>
+  <rect x="414.75" y="540.75" width="90.5" height="16.5" fill="#ffffff" /><text x="460" y="551.25" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="460" dy="0">speichern/laden</tspan></text>
+  <rect x="277.32" y="368.56" width="96" height="29" fill="#ffffff" /><text x="325.32" y="379.06" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="325.32" dy="0">answer.yaml</tspan><tspan x="325.32" dy="12.5">hochladen (PW B)</tspan></text>
+  <rect x="595.35" y="275.52" width="68.5" height="29" fill="#ffffff" /><text x="629.6" y="286.02" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="629.6" dy="0">answer.yaml</tspan><tspan x="629.6" dy="12.5">abrufen</tspan></text>
+  <rect x="179" y="147.05" width="85" height="29" fill="#ffffff" /><text x="221.5" y="157.55" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="221.5" dy="0">CSV-/YAML-</tspan><tspan x="221.5" dy="12.5">Export (lokal)</tspan></text>
+  <rect x="200.88" y="527.21" width="79.5" height="29" fill="#ffffff" /><text x="240.63" y="537.71" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="240.63" dy="0">answer.yaml</tspan><tspan x="240.63" dy="12.5">herunterladen</tspan></text>
+</svg>
+</div>
+<p class="dfd-note">
+  ℹ Dieses Diagramm ist ein automatisch generierter SVG-Entwurf auf Basis der Systembeschreibung. Es kann jederzeit
+  durch das offizielle DrawIO- oder Confluence-Architekturdiagramm ersetzt werden.
+</p>
+<p class="caption">
+  Abbildung 1: Datenflussdiagramm des Umfrage-Managers mit den drei Vertrauensgrenzen (TB-1 Operator-Rechner, TB-2
+  Passwortgeschützter Dateiaustausch, TB-3 Respondenten-Rechner). Alle 10 Datenflüsse sind in-scope (durchgezogen); die
+  Datei-Austausch-Plattform selbst bleibt als Blackbox außerhalb des Scopes.
+</p>
+
+<h2>1.3 Assets</h2>
+<p>
+  Assets sind schützenswerte Elemente des Systems. In den meisten Fällen enthalten Assets sensible Daten, geistiges
+  Eigentum und kritische Systemfunktionen. Werden Assets offengelegt, verändert oder unverfügbar gemacht, kann das
+  System nicht mehr ordnungsgemäß arbeiten und/oder es entsteht erheblicher Schaden für die Organisation.
+</p>
+<p>
+  Der Schutzbedarf wird gemäß der CIA-Trias bewertet und in Anlehnung an den BSI IT-Grundschutz in drei
+  Schutzbedarfskategorien eingeteilt:
+</p>
+<ul>
+  <li><strong>Normal (N):</strong> Die Schadensauswirkungen sind begrenzt und überschaubar.</li>
+  <li><strong>Hoch (H):</strong> Die Schadensauswirkungen können beträchtlich sein.</li>
+  <li><strong>Sehr hoch (S):</strong> Die Schadensauswirkungen können ein existenziell bedrohliches, katastrophales
+    Ausmaß erreichen.</li>
+</ul>
+<table>
+  <thead>
+    <tr>
+      <th rowspan="2">ID</th>
+      <th rowspan="2">Asset</th>
+      <th rowspan="2">Definition</th>
+      <th rowspan="2">Ort im System</th>
+      <th colspan="3" style="text-align:center;">Schutzbedarf (C / I / A)</th>
+    </tr>
+    <tr>
+      <th style="text-align:center;">C</th>
+      <th style="text-align:center;">I</th>
+      <th style="text-align:center;">A</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>A01</td>
+      <td>Umfrage-Antwortdaten</td>
+      <td>Antworten der Befragten, ggf. inkl. personenbezogener Daten (PII)</td>
+      <td>localStorage (Operator: <code>.antworten</code> &amp; Befragter); answer.yaml in Übertragung über die Austauschplattform; CSV-Export</td>
+      <td style="text-align:center;"><strong>S</strong></td>
+      <td style="text-align:center;">N</td>
+      <td style="text-align:center;">N</td>
+    </tr>
+    <tr>
+      <td>A02</td>
+      <td>Umfragedefinition</td>
+      <td>Umfragestruktur: Fragen, Optionen, Texte, Bezeichner</td>
+      <td>localStorage (Operator: <code>.meta</code>/<code>.fragen</code>); survey.yaml-Exporte; eingebettetes JSON in der generierten Client-HTML</td>
+      <td style="text-align:center;">N</td>
+      <td style="text-align:center;"><strong>H</strong></td>
+      <td style="text-align:center;">N</td>
+    </tr>
+    <tr>
+      <td>A03</td>
+      <td>Anwendungslogik / Quellcode</td>
+      <td>App-Logik + inline eingebettetes js-yaml in beiden HTML-Dokumenten</td>
+      <td><code>UmfrageManager.html</code> (beide <code>&lt;script&gt;</code>-Blöcke); generierte Client-HTML (App-Skript + js-yaml-Kopie)</td>
+      <td style="text-align:center;">N</td>
+      <td style="text-align:center;"><strong>H</strong></td>
+      <td style="text-align:center;">N</td>
+    </tr>
+  </tbody>
+</table>
+<p class="caption">
+  Tabelle 1: Asset-Inventar mit CIA-Schutzbedarf. A01 wird bei Vertraulichkeit auf <strong>S</strong> (sehr hoch)
+  eingestuft, weil Antworten frei formulierter, im Voraus nicht begrenzbarer Text der Befragten sein können
+  (Worst-Case). A01 I/A = N/N sowie A02/A03 C = N sind bewusste, vom Nutzer bestätigte Abweichungen von den
+  Katalog-Standardwerten. Zugangs-Passwörter A/B sind keine Assets dieser Anwendung (sie schützen den Zugang zur
+  außerhalb des Scopes liegenden Plattform, nicht etwas, das diese App speichert). Ein Audit-/Protokolldatenbestand
+  existiert nicht (siehe Repudiation-Lücke, Phase 2).
+</p>
+
+<h2>1.4 Angreifermodell</h2>
+<p>
+  Das Angreifermodell definiert, wer die Motivation und die Fähigkeit hat, dieses System anzugreifen. Es bestimmt, wo
+  Vertrauensgrenzen gezogen werden, welche externen Entitäten relevant sind, wie tief das System zerlegt wird und was
+  überhaupt als Bedrohung gilt.
+</p>
+<ul>
+  <li><strong>Wo Vertrauensgrenzen gezogen werden.</strong> Ob das interne Netz als vertrauenswürdig gilt, hängt
+    vollständig davon ab, ob das Modell einen böswilligen Insider einschließt.</li>
+  <li><strong>Welche externen Entitäten relevant sind.</strong> Der Ausschluss staatlicher Akteure bedeutet, dass ein
+    hochentwickelter Supply-Chain-Angreifer nicht separat modelliert werden muss.</li>
+  <li><strong>Wie tief zerlegt wird.</strong> Ein Modell, das nur externe Angreifer umfasst, kann am API-Gateway enden.</li>
+  <li><strong>Was überhaupt als Bedrohung gilt.</strong> Die STRIDE-Kategorie Spoofing ist bedeutungslos, ohne zu
+    wissen, wer wen fälschen könnte.</li>
+</ul>
+
+<h3>Teil A — Angreiferprofile</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Angreifertyp</th>
+      <th>Position</th>
+      <th>Typisches Ziel</th>
+      <th>STRIDE-Fokus</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Authentifizierter (böswilliger) Nutzer</td>
+      <td>Besitzt das gemeinsame Passwort B (einer der 40 Befragten)</td>
+      <td>Manipulierte answer.yaml hochladen, um Umfrageergebnisse zu verfälschen/beeinflussen, oder die Importlogik des Managers ausnutzen</td>
+      <td>R · I · E</td>
+    </tr>
+    <tr>
+      <td>Unauthentifizierter Internet-Angreifer</td>
+      <td>Öffentliches Internet, kein legitimes Passwort (bis zu einem Leak)</td>
+      <td>Ein geleaktes Passwort A/B erlangen/erraten und dann mit derselben Reichweite wie ein böswilliger Befragter agieren</td>
+      <td>S · I · D</td>
+    </tr>
+    <tr>
+      <td>Kompromittierter Client (Browser)</td>
+      <td>Browser des Operators oder eines Befragten — clientseitig</td>
+      <td>Daten im Browser manipulieren (localStorage, Ex-/Importe); lokal gehaltene Daten exfiltrieren</td>
+      <td>S · T · I</td>
+    </tr>
+    <tr>
+      <td>Supply-Chain-Angreifer</td>
+      <td>Kompromittierte Abhängigkeit / Build- / Entwicklungsumgebung</td>
+      <td>Schadcode in ein künftig neu eingebettetes js-yaml oder in eines der HTML-Dokumente einschleusen</td>
+      <td>T · I · E</td>
+    </tr>
+  </tbody>
+</table>
+<p class="caption">
+  Tabelle 2: Ausgewählte Angreifertypen. Nicht berücksichtigt: Kompromittiertes IoT-Gerät (kein IoT-Kontext),
+  Interner/Privilegierter Angreifer (keine gemeinsame interne Infrastruktur; der Operator-Rechner ist bereits durch
+  „Kompromittierter Client" abgedeckt) und Nation-State/APT (unverhältnismäßig für dieses interne Werkzeug mit
+  geringem Volumen — bewusst ausgeschlossen trotz A01 = S).
+</p>
+
+<h3>Teil B — OWASP-Bedrohungsakteur-Wahrscheinlichkeitswerte</h3>
+<p>
+  Fähigkeitsniveau, Motiv und Gruppengröße sind Katalog-Standardwerte — anzupassen, falls der Systemkontext abweicht.
+  Gelegenheit ist immer systemspezifisch: pro Vertrauensgrenze bewertet, entsprechend der Leichtigkeit, mit der der
+  Angreifer diese Grenze erreicht.
+</p>
+<table>
+  <thead>
+    <tr>
+      <th rowspan="2">Angreifertyp</th>
+      <th rowspan="2" style="text-align:center;">Fähigkeits&shy;niveau</th>
+      <th rowspan="2" style="text-align:center;">Motiv</th>
+      <th rowspan="2" style="text-align:center;">Gruppen&shy;größe</th>
+      <th colspan="3" style="text-align:center;">Gelegenheit (pro Vertrauensgrenze)</th>
+    </tr>
+    <tr>
+      <th style="text-align:center;">TB-1</th>
+      <th style="text-align:center;">TB-2</th>
+      <th style="text-align:center;">TB-3</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Authentifizierter (böswilliger) Nutzer</td>
+      <td style="text-align:center;">4</td><td style="text-align:center;">6</td><td style="text-align:center;">5</td>
+      <td style="text-align:center;">1</td><td style="text-align:center;">4</td><td style="text-align:center;">9</td>
+    </tr>
+    <tr>
+      <td>Unauthentifizierter Internet-Angreifer</td>
+      <td style="text-align:center;">6</td><td style="text-align:center;">4</td><td style="text-align:center;">9</td>
+      <td style="text-align:center;">1</td><td style="text-align:center;">5</td><td style="text-align:center;">1</td>
+    </tr>
+    <tr>
+      <td>Kompromittierter Client (Browser)</td>
+      <td style="text-align:center;">7</td><td style="text-align:center;">7</td><td style="text-align:center;">4</td>
+      <td style="text-align:center;">9</td><td style="text-align:center;">6</td><td style="text-align:center;">9</td>
+    </tr>
+    <tr>
+      <td>Supply-Chain-Angreifer</td>
+      <td style="text-align:center;">8</td><td style="text-align:center;">7</td><td style="text-align:center;">2</td>
+      <td style="text-align:center;">8</td><td style="text-align:center;">2</td><td style="text-align:center;">8</td>
+    </tr>
+  </tbody>
+</table>
+<p class="caption">
+  Tabelle 3: Bedrohungsakteur-Faktoren (0–9). Zentrale Gelegenheits-Begründung: TB-2 ist eine Gruppen-Passwort-Grenze
+  (keine Einzelauthentifizierung) — daher liegt die TB-2-Gelegenheit des unauthentifizierten Angreifers (5) über der
+  des authentifizierten Nutzers (4): ein einzelner Leak reduziert „authentifiziert" faktisch auf „jeder mit der
+  Zeichenkette". Kompromittierter Client erreicht 9 bei TB-1/TB-3, weil der Angreifer dort bereits innerhalb der Grenze
+  ist; Supply-Chain 8 bei TB-1/TB-3 (dieselbe js-yaml-Kopie läuft in beiden Dokumenten), aber nur 2 bei TB-2 (getrennte,
+  außerhalb des Scopes liegende Infrastruktur).
+</p>
+
+<h2>1.5 Projektweite feste Werte</h2>
+<table style="width:auto;">
+  <thead>
+    <tr>
+      <th>Faktor</th>
+      <th style="text-align:center;">Wert</th>
+      <th>Begründung</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Bekanntheit (Awareness)</td>
+      <td style="text-align:center;">3</td>
+      <td>Open-Source-Projekt auf GitHub, aber ein Nischen-Anwendungsfall ohne realistische Möglichkeit zu ermitteln, wer es tatsächlich einsetzt.</td>
+    </tr>
+    <tr>
+      <td>Angriffserkennung (Intrusion Detection)</td>
+      <td style="text-align:center;">9</td>
+      <td>Schlechtestes Ende der Skala (OWASP-Konvention: höher = schlechtere Erkennung) — die Anwendung besitzt keinerlei Logging/Monitoring/Alerting. Allgemeine Anti-Malware auf den Rechnern zählt nicht als anwendungsseitige Erkennung.</td>
+    </tr>
+  </tbody>
+</table>
+<p class="caption">
+  Tabelle 4: Projektweite feste Eingabewerte für die Wahrscheinlichkeitsberechnung aller Bedrohungen.
+</p>
+
+</body>
+</html>

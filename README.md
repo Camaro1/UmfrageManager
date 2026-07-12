@@ -40,8 +40,17 @@ Aktueller Sicherheitsstatus:
 
 ### Bedrohungsmodell (Threat Model)
 
-Ein ausführliches Bedrohungsmodell wird zu einem späteren Zeitpunkt ergänzt und hier verlinkt.
+Ein ausführliches STRIDE-Bedrohungsmodell (Bewertung nach OWASP Risk Rating) liegt unter [`docs/security/`](docs/security/) vor. Eine Kurzfassung mit Verweis auf alle Artefakte findet sich in [`docs/security/threat-model.md`](docs/security/threat-model.md).
+
+## Dokumentation
+
+- [Getting Started](docs/getting-started.md) — Schritt-für-Schritt-Anleitung zu den Arbeitsabläufen inkl. Sicherheitsempfehlungen.
+- [Bedrohungsmodell — Kurzfassung](docs/security/threat-model.md).
+- [Sicherheitsrichtlinie (`SECURITY.md`)](SECURITY.md) — Melden von Schwachstellen.
+- [Änderungsprotokoll (`CHANGELOG.md`)](CHANGELOG.md).
 
 ## Lizenz
 
 Umfrage-Manager steht unter der [MIT-Lizenz](LICENSE).
+
+Die eingebettete Bibliothek **js-yaml 4.1.0** steht unter der MIT-Lizenz (Copyright © 2011–2015 Vitaly Puzrin, [nodeca/js-yaml](https://github.com/nodeca/js-yaml)). Die Einbettung, Anpassung und Weitergabe im Rahmen dieses Projekts ist davon gedeckt.

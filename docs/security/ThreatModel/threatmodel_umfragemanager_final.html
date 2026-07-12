@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bedrohungsmodell Umfrage-Manager — Gesamtbericht (Phasen 1–3)</title>
+<style>
+body {
+    font-family: Georgia, serif;
+    font-size: 15px;
+    line-height: 1.7;
+    color: #1a1a1a;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 48px 40px 80px;
+  }
+  h1 {
+    font-size: 28px;
+    font-weight: normal;
+    border-bottom: 2px solid #0d0d0d;
+    padding-bottom: 8px;
+  }
+  h2 {
+    font-size: 20px;
+    font-weight: normal;
+    font-family: Arial, sans-serif;
+    border-bottom: 1px solid #d0d0d0;
+    padding-bottom: 5px;
+    margin-top: 40px;
+  }
+  h3 {
+    font-size: 14px;
+    font-weight: bold;
+    font-family: Arial, sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #555;
+    margin-top: 28px;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-family: Arial, sans-serif;
+    font-size: 12.5px;
+    margin-top: 12px;
+  }
+  th {
+    background: #f0f0f0;
+    font-weight: bold;
+    border: 1px solid #ccc;
+    padding: 7px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  td {
+    border: 1px solid #ddd;
+    padding: 7px 10px;
+    vertical-align: top;
+  }
+  tbody tr:nth-child(even) {
+    background: #fafafa;
+  }
+  .tb-row td {
+    background: #f0f4f8;
+    font-weight: bold;
+    color: #2a4a6b;
+    border-top: 2px solid #c0cfe0;
+  }
+  .caption {
+    font-size: 12px;
+    color: #777;
+    font-style: italic;
+    margin-top: 6px;
+    margin-bottom: 24px;
+  }
+  .dfd-note {
+    font-size: 12.5px;
+    color: #555;
+    background: #f7f7f7;
+    border-left: 3px solid #c0cfe0;
+    padding: 8px 12px;
+    margin-top: 12px;
+  }
+  .dfd-figure { text-align: center; margin-top: 16px; }
+  .dfd-figure svg { max-width: 100%; height: auto; }
+  .report-header { margin-bottom: 8px; }
+  .report-header .sub { font-family: Arial, sans-serif; font-size: 13px; color:#777; }
+</style>
+</head>
+<body>
+
+<div class="report-header">
+  <p style="font-family:Arial,sans-serif;font-size:12px;color:#777;margin:0 0 4px;">Bedrohungsmodell · Umfrage-Manager</p>
+  <p class="sub" style="margin:0;">STRIDE-Bedrohungsmodell nach OWASP Risk Rating · Gesamtbericht der Phasen 1–3 · Berichtssprache: Deutsch</p>
+</div>
+
+<h1>1. Woran arbeiten wir?</h1>
+
+<h2>1.1 Beschreibung der Anwendung</h2>
+<p>
+  Der <strong>Umfrage-Manager</strong> ist ein lokal ausgeführtes, aus einer einzigen HTML-Datei bestehendes Werkzeug
+  zum Erstellen und Verwalten von Umfragen, das einen bisher manuellen, Excel-basierten Arbeitsablauf ersetzt. Es gibt
+  keine serverseitige Anwendungslogik, keinen Build-Schritt und zur Laufzeit keine externe Netzwerkabhängigkeit — die
+  Anwendung läuft vollständig offline aus dem Dateisystem (<code>file://</code>).
+</p>
+<p>
+  <strong>Nutzer:</strong> Der <em>Umfrage-Ersteller</em> (Operator) öffnet <code>UmfrageManager.html</code> lokal,
+  erstellt und bearbeitet Umfragen, exportiert/importiert YAML und wertet Antworten aus. Die <em>Befragten</em> (fest
+  40 pro Umfrage, als Gruppe per gemeinsamem Passwort authentifiziert, nicht individuell) laden die generierte
+  Client-HTML von einem passwortgeschützten öffentlichen Link herunter, füllen sie im eigenen Browser aus und laden
+  ihre Antwort-YAML in eine passwortgeschützte Dateiablage hoch. Volumen: ca. 2 Umfragen/Monat, 40 Befragte/Umfrage.
+</p>
+<p>
+  <strong>Komponenten:</strong> <code>UmfrageManager.html</code> (Umfrage-CRUD, YAML-Ein-/Ausgabe, Client-Generator,
+  Auswertung/CSV-Export); die generierte Client-HTML (Ausgabe von <code>buildClientHtml()</code>); die inline
+  eingebettete Bibliothek js-yaml 4.1.0 in beiden Dokumenten. <strong>Datenspeicher:</strong> der localStorage des
+  Managers (<code>umfrageManager.&lt;uuid&gt;.*</code>) und der localStorage des Clients
+  (<code>umfrageClient.&lt;uuid&gt;.*</code>, im Browser des jeweiligen Befragten).
+</p>
+<p>
+  <strong>Zwei-HTML-Datei-Austauschmuster (statt eines Servers):</strong> Der Manager exportiert eine Umfrage als YAML
+  und generiert eine zweite, vollständig eigenständige Client-HTML für die Befragten. Diese exportieren ihre Antworten
+  als YAML, die der Operator wieder importiert und aggregiert (Auswertung, CSV-Export). Der kritische Angreifer-
+  Eingabepfad ist die von Befragten kontrollierte <code>answer.yaml</code>, die über
+  <code>importAnswerFiles()</code>/<code>jsyaml.load()</code> in den Manager gelangt.
+</p>
+<p>
+  <strong>Technologie-Stack:</strong> Vanilla JavaScript, js-yaml 4.1.0 (inline vendored), Browser-APIs
+  (localStorage, crypto.subtle, crypto.randomUUID, Blob, FileReader), hash-basierter Content-Security-Policy in beiden
+  Dokumenten.
+</p>
+<p>
+  <strong>Vertrauensgrenzen:</strong>
+</p>
+<ul>
+  <li><strong>TB-1 · Operator-Rechner:</strong> <code>UmfrageManager.html</code> und dessen localStorage.</li>
+  <li><strong>TB-2 · Passwortgeschützter Dateiaustausch:</strong> öffentlicher Download-Link (Client-HTML, Passwort A)
+    und Datei-Ablage (Antwort-YAML-Upload, Passwort B). Gemeinsames Gruppen-Geheimnis, keine individuelle Identität.
+    Die Plattform selbst ist außerhalb des Scopes (Blackbox); die sie kreuzenden Datenflüsse sind jedoch in-scope.</li>
+  <li><strong>TB-3 · Respondenten-Rechner:</strong> die generierte Client-HTML und deren eigener localStorage.</li>
+</ul>
+<p>
+  <strong>Passwort-Modell (wichtig für die Bewertung):</strong> Passwort A gewährt <em>Download-Zugriff</em> auf die
+  Client-HTML (lesefähig). Passwort B gewährt <em>ausschließlich Upload-Zugriff</em> auf eine schreibgeschützte Ablage
+  — Inhaber können anfügen, aber weder lesen, auflisten, überschreiben noch löschen; nur der Operator ruft die Dateien
+  über sein eigenes authentifiziertes Plattform-Konto ab.
+</p>
+
+<h2>1.2 Datenflussdiagramm</h2>
+<div class="dfd-figure">
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox="-20 50 1088.35 772.67">
+  <defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" /></marker></defs>
+  <rect x="-20" y="50" width="1088.35" height="772.67" fill="#ffffff" />
+  <rect x="320" y="70" width="280" height="270" rx="12" fill="none" stroke="#e05a5a" stroke-width="1" stroke-dasharray="8 4" />
+  <rect x="738.35" y="309.39" width="280" height="120" rx="12" fill="none" stroke="#e05a5a" stroke-width="1" stroke-dasharray="8 4" />
+  <rect x="320" y="414" width="280" height="270" rx="12" fill="none" stroke="#e05a5a" stroke-width="1" stroke-dasharray="8 4" />
+  <text x="330" y="85.35" font-family="Arial, sans-serif" font-size="11" fill="#e05a5a" text-anchor="start"><tspan x="330" dy="0">TB-1 - Operator-Rechner</tspan></text>
+  <text x="748.35" y="324.74" font-family="Arial, sans-serif" font-size="11" fill="#e05a5a" text-anchor="start"><tspan x="748.35" dy="0">TB-2 - Passwortgesch. Dateiaustausch</tspan></text>
+  <text x="330" y="429.35" font-family="Arial, sans-serif" font-size="11" fill="#e05a5a" text-anchor="start"><tspan x="330" dy="0">TB-3 - Respondenten-Rechner</tspan></text>
+  <ellipse cx="70" cy="146" rx="16" ry="16" fill="#d8e8f5" stroke="#2a5db0" stroke-width="1" />
+  <rect x="37" y="162" width="66" height="34" rx="12" fill="#d8e8f5" stroke="#2a5db0" stroke-width="1" />
+  <text x="0" y="211.35" font-family="Arial, sans-serif" font-size="11" fill="#2a5db0" text-anchor="start"><tspan x="0" dy="0">Umfrage-</tspan><tspan x="0" dy="13.75">Ersteller</tspan></text>
+  <ellipse cx="70.99" cy="515.51" rx="16" ry="16" fill="#d8e8f5" stroke="#2a5db0" stroke-width="1" />
+  <rect x="37.99" y="531.51" width="66" height="34" rx="12" fill="#d8e8f5" stroke="#2a5db0" stroke-width="1" />
+  <text x="0.99" y="580.86" font-family="Arial, sans-serif" font-size="11" fill="#2a5db0" text-anchor="start"><tspan x="0.99" dy="0">Befragte</tspan><tspan x="0.99" dy="13.75">(40x, Passwort-</tspan><tspan x="0.99" dy="13.75">Gruppenzugang)</tspan></text>
+  <rect x="340" y="100" width="240" height="50" rx="12" fill="#fde8e0" stroke="#993c1d" stroke-width="1" />
+  <text x="460" y="129.2" font-family="Arial, sans-serif" font-size="12" fill="#993c1d" text-anchor="middle"><tspan x="460" dy="0">UmfrageManager.html</tspan></text>
+  <rect x="340" y="260" width="240" height="50" rx="12" fill="#ece8fa" stroke="#534ab7" stroke-width="1" />
+  <rect x="340" y="276" width="240" height="2" rx="0" fill="#534ab7" stroke="#534ab7" stroke-width="1" />
+  <text x="460" y="288.85" font-family="Arial, sans-serif" font-size="11" fill="#534ab7" text-anchor="middle"><tspan x="460" dy="0">localStorage (Operator)</tspan></text>
+  <rect x="758.35" y="339.39" width="240" height="70.01" rx="12" fill="#f5f5f5" stroke="#aaaaaa" stroke-width="1" stroke-dasharray="8 4" />
+  <text x="878.35" y="371.37" font-family="Arial, sans-serif" font-size="11" fill="#aaaaaa" text-anchor="middle"><tspan x="878.35" dy="0">Datei-Austausch-</tspan><tspan x="878.35" dy="13.75">Plattform (Out-of-Scope)</tspan></text>
+  <rect x="340" y="444" width="240" height="50" rx="12" fill="#fde8e0" stroke="#993c1d" stroke-width="1" />
+  <text x="460" y="473.2" font-family="Arial, sans-serif" font-size="12" fill="#993c1d" text-anchor="middle"><tspan x="460" dy="0">Generated Client HTML</tspan></text>
+  <rect x="340" y="604" width="240" height="50" rx="12" fill="#ece8fa" stroke="#534ab7" stroke-width="1" />
+  <rect x="340" y="620" width="240" height="2" rx="0" fill="#534ab7" stroke="#534ab7" stroke-width="1" />
+  <text x="460" y="632.85" font-family="Arial, sans-serif" font-size="11" fill="#534ab7" text-anchor="middle"><tspan x="460" dy="0">localStorage (Respondent)</tspan></text>
+  <polyline points="107.89,171.1 164.05,171.1 164.05,116.71 335.01,116.71" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="460,150 460,260" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="584.98,114.76 706.31,114.76 706.31,350.65 753.91,350.65" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="753.96,398.88 228.26,398.88 228.26,401.65 97.79,401.65 97.79,523.02" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="103.99,548.51 149.57,548.51 149.57,469.01 340,469.01" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="460,494 460,604" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="42.83,528.62 42.83,383.06 753.36,383.06" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="749.21,367.31 629.6,367.31 629.6,137.75 584.97,137.75" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <polyline points="335.01,133.2 221.5,133.2 221.5,189.7 107.79,189.7" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <rect x="23.33" y="712.67" width="24" height="16" rx="8" fill="#d8e8f5" stroke="#2a5db0" stroke-width="1" />
+  <text x="57.33" y="725.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="57.33" dy="0">Akteur (im Scope)</tspan></text>
+  <rect x="423.33" y="712.67" width="24" height="16" rx="8" fill="#fde8e0" stroke="#993c1d" stroke-width="1" />
+  <text x="457.33" y="725.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="457.33" dy="0">Prozess</tspan></text>
+  <rect x="23.33" y="742.67" width="24" height="16" rx="8" fill="#f5f5f5" stroke="#aaaaaa" stroke-width="1" stroke-dasharray="8 4" />
+  <text x="57.33" y="755.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="57.33" dy="0">Prozess (Out-of-Scope)</tspan></text>
+  <rect x="423.33" y="742.67" width="24" height="16" rx="8" fill="#ece8fa" stroke="#534ab7" stroke-width="1" />
+  <text x="457.33" y="755.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="457.33" dy="0">Datenspeicher (persistent)</tspan></text>
+  <rect x="23.33" y="772.67" width="60" height="30" rx="12" fill="none" stroke="#e05a5a" stroke-width="1" stroke-dasharray="8 4" />
+  <text x="93.33" y="787.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="93.33" dy="0">Vertrauensgrenze</tspan></text>
+  <polyline points="423.33,787.67 473.33,787.67" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <text x="483.33" y="787.02" font-family="Arial, sans-serif" font-size="11" fill="#1e1e1e" text-anchor="start"><tspan x="483.33" dy="0">Datenfluss (in-scope)</tspan></text>
+  <polyline points="330.01,482.7 240.63,482.7 240.63,558.29 108.83,558.29" fill="none" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arr)" />
+  <rect x="162.75" y="102.21" width="63" height="29" fill="#ffffff" /><text x="194.25" y="112.71" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="194.25" dy="0">erstellen/</tspan><tspan x="194.25" dy="12.5">bearbeiten</tspan></text>
+  <rect x="414.75" y="196.75" width="90.5" height="16.5" fill="#ffffff" /><text x="460" y="207.25" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="460" dy="0">speichern/laden</tspan></text>
+  <rect x="658.31" y="181.34" width="96" height="29" fill="#ffffff" /><text x="706.31" y="191.84" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="706.31" dy="0">Client-HTML</tspan><tspan x="706.31" dy="12.5">hochladen (PW A)</tspan></text>
+  <rect x="304.81" y="384.38" width="118" height="29" fill="#ffffff" /><text x="363.81" y="394.88" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="363.81" dy="0">Client-HTML</tspan><tspan x="363.81" dy="12.5">herunterladen (PW A)</tspan></text>
+  <rect x="150.74" y="454.51" width="63" height="29" fill="#ffffff" /><text x="182.24" y="465.01" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="182.24" dy="0">Antworten</tspan><tspan x="182.24" dy="12.5">ausfuellen</tspan></text>
+  <rect x="414.75" y="540.75" width="90.5" height="16.5" fill="#ffffff" /><text x="460" y="551.25" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="460" dy="0">speichern/laden</tspan></text>
+  <rect x="277.32" y="368.56" width="96" height="29" fill="#ffffff" /><text x="325.32" y="379.06" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="325.32" dy="0">answer.yaml</tspan><tspan x="325.32" dy="12.5">hochladen (PW B)</tspan></text>
+  <rect x="595.35" y="275.52" width="68.5" height="29" fill="#ffffff" /><text x="629.6" y="286.02" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="629.6" dy="0">answer.yaml</tspan><tspan x="629.6" dy="12.5">abrufen</tspan></text>
+  <rect x="179" y="147.05" width="85" height="29" fill="#ffffff" /><text x="221.5" y="157.55" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="221.5" dy="0">CSV-/YAML-</tspan><tspan x="221.5" dy="12.5">Export (lokal)</tspan></text>
+  <rect x="200.88" y="527.21" width="79.5" height="29" fill="#ffffff" /><text x="240.63" y="537.71" font-family="Arial, sans-serif" font-size="10" fill="#1e1e1e" text-anchor="middle"><tspan x="240.63" dy="0">answer.yaml</tspan><tspan x="240.63" dy="12.5">herunterladen</tspan></text>
+</svg>
+</div>
+<p class="dfd-note">
+  ℹ Dieses Diagramm ist ein automatisch generierter SVG-Entwurf auf Basis der Systembeschreibung. Es kann jederzeit
+  durch das offizielle DrawIO- oder Confluence-Architekturdiagramm ersetzt werden.
+</p>
+<p class="caption">
+  Abbildung 1: Datenflussdiagramm des Umfrage-Managers mit den drei Vertrauensgrenzen (TB-1 Operator-Rechner, TB-2
+  Passwortgeschützter Dateiaustausch, TB-3 Respondenten-Rechner). Alle 10 Datenflüsse sind in-scope (durchgezogen); die
+  Datei-Austausch-Plattform selbst bleibt als Blackbox außerhalb des Scopes.
+</p>
+
+<h2>1.3 Assets</h2>
+<p>
+  Assets sind schützenswerte Elemente des Systems. In den meisten Fällen enthalten Assets sensible Daten, geistiges
+  Eigentum und kritische Systemfunktionen. Werden Assets offengelegt, verändert oder unverfügbar gemacht, kann das
+  System nicht mehr ordnungsgemäß arbeiten und/oder es entsteht erheblicher Schaden für die Organisation.
+</p>
+<p>
+  Der Schutzbedarf wird gemäß der CIA-Trias bewertet und in Anlehnung an den BSI IT-Grundschutz in drei
+  Schutzbedarfskategorien eingeteilt:
+</p>
+<ul>
+  <li><strong>Normal (N):</strong> Die Schadensauswirkungen sind begrenzt und überschaubar.</li>
+  <li><strong>Hoch (H):</strong> Die Schadensauswirkungen können beträchtlich sein.</li>
+  <li><strong>Sehr hoch (S):</strong> Die Schadensauswirkungen können ein existenziell bedrohliches, katastrophales
+    Ausmaß erreichen.</li>
+</ul>
+<table>
+  <thead>
+    <tr>
+      <th rowspan="2">ID</th>
+      <th rowspan="2">Asset</th>
+      <th rowspan="2">Definition</th>
+      <th rowspan="2">Ort im System</th>
+      <th colspan="3" style="text-align:center;">Schutzbedarf (C / I / A)</th>
+    </tr>
+    <tr>
+      <th style="text-align:center;">C</th>
+      <th style="text-align:center;">I</th>
+      <th style="text-align:center;">A</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>A01</td>
+      <td>Umfrage-Antwortdaten</td>
+      <td>Antworten der Befragten, ggf. inkl. personenbezogener Daten (PII)</td>
+      <td>localStorage (Operator: <code>.antworten</code> &amp; Befragter); answer.yaml in Übertragung über die Austauschplattform; CSV-Export</td>
+      <td style="text-align:center;"><strong>S</strong></td>
+      <td style="text-align:center;">N</td>
+      <td style="text-align:center;">N</td>
+    </tr>
+    <tr>
+      <td>A02</td>
+      <td>Umfragedefinition</td>
+      <td>Umfragestruktur: Fragen, Optionen, Texte, Bezeichner</td>
+      <td>localStorage (Operator: <code>.meta</code>/<code>.fragen</code>); survey.yaml-Exporte; eingebettetes JSON in der generierten Client-HTML</td>
+      <td style="text-align:center;">N</td>
+      <td style="text-align:center;"><strong>H</strong></td>
+      <td style="text-align:center;">N</td>
+    </tr>
+    <tr>
+      <td>A03</td>
+      <td>Anwendungslogik / Quellcode</td>
+      <td>App-Logik + inline eingebettetes js-yaml in beiden HTML-Dokumenten</td>
+      <td><code>UmfrageManager.html</code> (beide <code>&lt;script&gt;</code>-Blöcke); generierte Client-HTML (App-Skript + js-yaml-Kopie)</td>
+      <td style="text-align:center;">N</td>
+      <td style="text-align:center;"><strong>H</strong></td>
+      <td style="text-align:center;">N</td>
+    </tr>
+  </tbody>
+</table>
+<p class="caption">
+  Tabelle 1: Asset-Inventar mit CIA-Schutzbedarf. A01 wird bei Vertraulichkeit auf <strong>S</strong> (sehr hoch)
+  eingestuft, weil Antworten frei formulierter, im Voraus nicht begrenzbarer Text der Befragten sein können
+  (Worst-Case). A01 I/A = N/N sowie A02/A03 C = N sind bewusste, vom Nutzer bestätigte Abweichungen von den
+  Katalog-Standardwerten. Zugangs-Passwörter A/B sind keine Assets dieser Anwendung (sie schützen den Zugang zur
+  außerhalb des Scopes liegenden Plattform, nicht etwas, das diese App speichert). Ein Audit-/Protokolldatenbestand
+  existiert nicht (siehe Repudiation-Lücke, Phase 2).
+</p>
+
+<h2>1.4 Angreifermodell</h2>
+<p>
+  Das Angreifermodell definiert, wer die Motivation und die Fähigkeit hat, dieses System anzugreifen. Es bestimmt, wo
+  Vertrauensgrenzen gezogen werden, welche externen Entitäten relevant sind, wie tief das System zerlegt wird und was
+  überhaupt als Bedrohung gilt.
+</p>
+<ul>
+  <li><strong>Wo Vertrauensgrenzen gezogen werden.</strong> Ob das interne Netz als vertrauenswürdig gilt, hängt
+    vollständig davon ab, ob das Modell einen böswilligen Insider einschließt.</li>
+  <li><strong>Welche externen Entitäten relevant sind.</strong> Der Ausschluss staatlicher Akteure bedeutet, dass ein
+    hochentwickelter Supply-Chain-Angreifer nicht separat modelliert werden muss.</li>
+  <li><strong>Wie tief zerlegt wird.</strong> Ein Modell, das nur externe Angreifer umfasst, kann am API-Gateway enden.</li>
+  <li><strong>Was überhaupt als Bedrohung gilt.</strong> Die STRIDE-Kategorie Spoofing ist bedeutungslos, ohne zu
+    wissen, wer wen fälschen könnte.</li>
+</ul>
+
+<h3>Teil A — Angreiferprofile</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Angreifertyp</th>
+      <th>Position</th>
+      <th>Typisches Ziel</th>
+      <th>STRIDE-Fokus</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Authentifizierter (böswilliger) Nutzer</td>
+      <td>Besitzt das gemeinsame Passwort B (einer der 40 Befragten)</td>
+      <td>Manipulierte answer.yaml hochladen, um Umfrageergebnisse zu verfälschen/beeinflussen, oder die Importlogik des Managers ausnutzen</td>
+      <td>R · I · E</td>
+    </tr>
+    <tr>
+      <td>Unauthentifizierter Internet-Angreifer</td>
+      <td>Öffentliches Internet, kein legitimes Passwort (bis zu einem Leak)</td>
+      <td>Ein geleaktes Passwort A/B erlangen/erraten und dann mit derselben Reichweite wie ein böswilliger Befragter agieren</td>
+      <td>S · I · D</td>
+    </tr>
+    <tr>
+      <td>Kompromittierter Client (Browser)</td>
+      <td>Browser des Operators oder eines Befragten — clientseitig</td>
+      <td>Daten im Browser manipulieren (localStorage, Ex-/Importe); lokal gehaltene Daten exfiltrieren</td>
+      <td>S · T · I</td>
+    </tr>
+    <tr>
+      <td>Supply-Chain-Angreifer</td>
+      <td>Kompromittierte Abhängigkeit / Build- / Entwicklungsumgebung</td>
+      <td>Schadcode in ein künftig neu eingebettetes js-yaml oder in eines der HTML-Dokumente einschleusen</td>
+      <td>T · I · E</td>
+    </tr>
+  </tbody>
+</table>
+<p class="caption">
+  Tabelle 2: Ausgewählte Angreifertypen. Nicht berücksichtigt: Kompromittiertes IoT-Gerät (kein IoT-Kontext),
+  Interner/Privilegierter Angreifer (keine gemeinsame interne Infrastruktur; der Operator-Rechner ist bereits durch
+  „Kompromittierter Client" abgedeckt) und Nation-State/APT (unverhältnismäßig für dieses interne Werkzeug mit
+  geringem Volumen — bewusst ausgeschlossen trotz A01 = S).
+</p>
+
+<h3>Teil B — OWASP-Bedrohungsakteur-Wahrscheinlichkeitswerte</h3>
+<p>
+  Fähigkeitsniveau, Motiv und Gruppengröße sind Katalog-Standardwerte — anzupassen, falls der Systemkontext abweicht.
+  Gelegenheit ist immer systemspezifisch: pro Vertrauensgrenze bewertet, entsprechend der Leichtigkeit, mit der der
+  Angreifer diese Grenze erreicht.
+</p>
+<table>
+  <thead>
+    <tr>
+      <th rowspan="2">Angreifertyp</th>
+      <th rowspan="2" style="text-align:center;">Fähigkeits&shy;niveau</th>
+      <th rowspan="2" style="text-align:center;">Motiv</th>
+      <th rowspan="2" style="text-align:center;">Gruppen&shy;größe</th>
+      <th colspan="3" style="text-align:center;">Gelegenheit (pro Vertrauensgrenze)</th>
+    </tr>
+    <tr>
+      <th style="text-align:center;">TB-1</th>
+      <th style="text-align:center;">TB-2</th>
+      <th style="text-align:center;">TB-3</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Authentifizierter (böswilliger) Nutzer</td>
+      <td style="text-align:center;">4</td><td style="text-align:center;">6</td><td style="text-align:center;">5</td>
+      <td style="text-align:center;">1</td><td style="text-align:center;">4</td><td style="text-align:center;">9</td>
+    </tr>
+    <tr>
+      <td>Unauthentifizierter Internet-Angreifer</td>
+      <td style="text-align:center;">6</td><td style="text-align:center;">4</td><td style="text-align:center;">9</td>
+      <td style="text-align:center;">1</td><td style="text-align:center;">5</td><td style="text-align:center;">1</td>
+    </tr>
+    <tr>
+      <td>Kompromittierter Client (Browser)</td>
+      <td style="text-align:center;">7</td><td style="text-align:center;">7</td><td style="text-align:center;">4</td>
+      <td style="text-align:center;">9</td><td style="text-align:center;">6</td><td style="text-align:center;">9</td>
+    </tr>
+    <tr>
+      <td>Supply-Chain-Angreifer</td>
+      <td style="text-align:center;">8</td><td style="text-align:center;">7</td><td style="text-align:center;">2</td>
+      <td style="text-align:center;">8</td><td style="text-align:center;">2</td><td style="text-align:center;">8</td>
+    </tr>
+  </tbody>
+</table>
+<p class="caption">
+  Tabelle 3: Bedrohungsakteur-Faktoren (0–9). Zentrale Gelegenheits-Begründung: TB-2 ist eine Gruppen-Passwort-Grenze
+  (keine Einzelauthentifizierung) — daher liegt die TB-2-Gelegenheit des unauthentifizierten Angreifers (5) über der
+  des authentifizierten Nutzers (4): ein einzelner Leak reduziert „authentifiziert" faktisch auf „jeder mit der
+  Zeichenkette". Kompromittierter Client erreicht 9 bei TB-1/TB-3, weil der Angreifer dort bereits innerhalb der Grenze
+  ist; Supply-Chain 8 bei TB-1/TB-3 (dieselbe js-yaml-Kopie läuft in beiden Dokumenten), aber nur 2 bei TB-2 (getrennte,
+  außerhalb des Scopes liegende Infrastruktur).
+</p>
+
+<h2>1.5 Projektweite feste Werte</h2>
+<table style="width:auto;">
+  <thead>
+    <tr>
+      <th>Faktor</th>
+      <th style="text-align:center;">Wert</th>
+      <th>Begründung</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Bekanntheit (Awareness)</td>
+      <td style="text-align:center;">3</td>
+      <td>Open-Source-Projekt auf GitHub, aber ein Nischen-Anwendungsfall ohne realistische Möglichkeit zu ermitteln, wer es tatsächlich einsetzt.</td>
+    </tr>
+    <tr>
+      <td>Angriffserkennung (Intrusion Detection)</td>
+      <td style="text-align:center;">9</td>
+      <td>Schlechtestes Ende der Skala (OWASP-Konvention: höher = schlechtere Erkennung) — die Anwendung besitzt keinerlei Logging/Monitoring/Alerting. Allgemeine Anti-Malware auf den Rechnern zählt nicht als anwendungsseitige Erkennung.</td>
+    </tr>
+  </tbody>
+</table>
+<p class="caption">
+  Tabelle 4: Projektweite feste Eingabewerte für die Wahrscheinlichkeitsberechnung aller Bedrohungen.
+</p>
+
+
+<hr style="border:none;border-top:1px solid #ccc;margin:56px 0;" />
+
+
+<h1>2. Was kann schiefgehen?</h1>
+
+<h2>2.1 Risikobewertung</h2>
+<p>
+  Jede identifizierte Bedrohung wird mit der OWASP-Risk-Rating-Methodik bewertet. Eintrittswahrscheinlichkeit
+  (Likelihood) und Auswirkung (Impact) sind jeweils der Durchschnitt von acht Faktoren, die von 0–9 bewertet werden;
+  das Gesamtrisiko ergibt sich aus der 3×3-Matrix unten. Die Tabellen in diesem Abschnitt definieren, wie die in der
+  Bedrohungstabelle (Abschnitt 2.3) gezeigten Bewertungen abgeleitet werden.
+</p>
+
+<h3>Risikofaktoren</h3>
+<p>
+  Die folgende Tabelle zeigt, welche Faktoren in die Likelihood- und Impact-Werte einfließen und woher der Wert jedes
+  Faktors stammt. Threat-Agent-Faktoren stammen aus dem Angreifermodell, Vulnerability- und Technical-Impact-Faktoren
+  werden pro Bedrohung bewertet, und Business-Impact-Faktoren orientieren sich an der CIA-Klassifizierung des betroffenen
+  Assets.
+</p>
+<table>
+  <thead>
+    <tr>
+      <th colspan="2">Likelihood-Faktoren</th>
+      <th colspan="2">Impact-Faktoren</th>
+    </tr>
+    <tr>
+      <th>Faktor</th>
+      <th style="color:#999;font-weight:normal;font-style:italic;">Abgeleitet aus</th>
+      <th>Faktor</th>
+      <th style="color:#999;font-weight:normal;font-style:italic;">Abgeleitet aus</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="background:#e8e8e8;">
+      <td colspan="2"><strong>Bedrohungsakteur</strong></td>
+      <td colspan="2"><strong>Technische Auswirkung</strong></td>
+    </tr>
+    <tr>
+      <td>Fähigkeitsniveau</td>
+      <td style="color:#999;font-style:italic;">Angreifermodell</td>
+      <td>Verlust der Vertraulichkeit</td>
+      <td style="color:#999;font-style:italic;">bedrohungsspezifisch</td>
+    </tr>
+    <tr>
+      <td>Motiv</td>
+      <td style="color:#999;font-style:italic;">Angreifermodell</td>
+      <td>Verlust der Integrität</td>
+      <td style="color:#999;font-style:italic;">bedrohungsspezifisch</td>
+    </tr>
+    <tr>
+      <td>Gelegenheit</td>
+      <td style="color:#999;font-style:italic;">pro Vertrauensgrenze</td>
+      <td>Verlust der Verfügbarkeit</td>
+      <td style="color:#999;font-style:italic;">bedrohungsspezifisch</td>
+    </tr>
+    <tr>
+      <td>Gruppengröße</td>
+      <td style="color:#999;font-style:italic;">Angreifermodell</td>
+      <td>Verlust der Nachvollziehbarkeit</td>
+      <td style="color:#999;font-style:italic;">bedrohungsspezifisch</td>
+    </tr>
+    <tr style="background:#e8e8e8;">
+      <td colspan="2"><strong>Schwachstelle</strong></td>
+      <td colspan="2"><strong>Geschäftliche Auswirkung</strong></td>
+    </tr>
+    <tr>
+      <td>Auffindbarkeit</td>
+      <td style="color:#999;font-style:italic;">bedrohungsspezifisch</td>
+      <td>Reputationsschaden</td>
+      <td style="color:#999;font-style:italic;">C-Einstufung des Assets</td>
+    </tr>
+    <tr>
+      <td>Ausnutzbarkeit</td>
+      <td style="color:#999;font-style:italic;">bedrohungsspezifisch</td>
+      <td>Finanzieller Schaden</td>
+      <td style="color:#999;font-style:italic;">C/I-Einstufung des Assets</td>
+    </tr>
+    <tr>
+      <td>Bekanntheit</td>
+      <td style="color:#999;font-style:italic;">systemweit fest: 3</td>
+      <td>Nichteinhaltung von Vorschriften</td>
+      <td style="color:#999;font-style:italic;">C-Einstufung des Assets</td>
+    </tr>
+    <tr>
+      <td>Angriffserkennung</td>
+      <td style="color:#999;font-style:italic;">systemweit fest: 9</td>
+      <td>Verletzung der Privatsphäre</td>
+      <td style="color:#999;font-style:italic;">C-Einstufung des Assets</td>
+    </tr>
+  </tbody>
+</table>
+<p class="caption">
+  Tabelle 5: Likelihood-Score = DURCHSCHNITT der 8 Likelihood-Faktoren (0–9). Impact-Score = DURCHSCHNITT der 8
+  Impact-Faktoren (0–9). Zuordnung: 0–3,0 = Niedrig · 3,1–6,0 = Mittel · 6,1–9,0 = Hoch.
+</p>
+
+<h3>Risikomatrix</h3>
+<p>
+  Das Gesamtrisiko jeder Bedrohung ergibt sich aus der Kombination ihrer Likelihood- und Impact-Bewertung in der
+  folgenden 3×3-Matrix.
+</p>
+<table style="width:auto;">
+  <thead>
+    <tr>
+      <th></th>
+      <th>Geringe Auswirkung</th>
+      <th>Mittlere Auswirkung</th>
+      <th>Hohe Auswirkung</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Geringe Wahrscheinlichkeit</strong></td>
+      <td style="background:#c6efce;">Niedrig</td>
+      <td style="background:#c6efce;">Niedrig</td>
+      <td style="background:#ffeb9c;">Mittel</td>
+    </tr>
+    <tr>
+      <td><strong>Mittlere Wahrscheinlichkeit</strong></td>
+      <td style="background:#c6efce;">Niedrig</td>
+      <td style="background:#ffeb9c;">Mittel</td>
+      <td style="background:#ffc7ce;">Hoch</td>
+    </tr>
+    <tr>
+      <td><strong>Hohe Wahrscheinlichkeit</strong></td>
+      <td style="background:#ffeb9c;">Mittel</td>
+      <td style="background:#ffc7ce;">Hoch</td>
+      <td style="background:#d9534f;color:#fff;"><strong>Kritisch</strong></td>
+    </tr>
+  </tbody>
+</table>
+<p class="caption">
+  Tabelle 6: Risikomatrix. Legende: 🟩 Niedrig – im regulären Zyklus behandeln · 🟨 Mittel – Mitigation planen,
+  Verantwortlichen zuweisen · 🟥 Hoch – priorisieren, vor Release beheben · 🔴 Kritisch – sofortiges Handeln erforderlich.
+</p>
+
+<h2>2.2 STRIDE-Kategorien</h2>
+<p>
+  STRIDE strukturiert die Bedrohungsidentifikation entlang sechs Kategorien, die jeweils einer verletzten
+  Sicherheitseigenschaft entsprechen. Die Leitfrage jeder Kategorie steuert die Analyse jeder Komponente und jedes
+  Datenflusses im folgenden Abschnitt.
+</p>
+<table>
+  <thead>
+    <tr>
+      <th>Kategorie</th>
+      <th>Verletzte Eigenschaft</th>
+      <th>Leitfrage</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>S</strong>poofing (Identitätsfälschung)</td>
+      <td>Authentizität</td>
+      <td>Kann ein Angreifer eine andere Identität vortäuschen?</td>
+    </tr>
+    <tr>
+      <td><strong>T</strong>ampering (Manipulation)</td>
+      <td>Integrität</td>
+      <td>Können Daten unbefugt verändert werden?</td>
+    </tr>
+    <tr>
+      <td><strong>R</strong>epudiation (Abstreitbarkeit)</td>
+      <td>Nichtabstreitbarkeit</td>
+      <td>Kann ein Akteur eine Handlung glaubhaft abstreiten?</td>
+    </tr>
+    <tr>
+      <td><strong>I</strong>nformation Disclosure (Informationsoffenlegung)</td>
+      <td>Vertraulichkeit</td>
+      <td>Kann unbefugt auf Daten zugegriffen werden?</td>
+    </tr>
+    <tr>
+      <td><strong>D</strong>enial of Service (Dienstverweigerung)</td>
+      <td>Verfügbarkeit</td>
+      <td>Kann die Verfügbarkeit beeinträchtigt werden?</td>
+    </tr>
+    <tr>
+      <td><strong>E</strong>levation of Privilege (Rechteausweitung)</td>
+      <td>Autorisierung</td>
+      <td>Kann ein Angreifer unbefugte Rechte erlangen?</td>
+    </tr>
+  </tbody>
+</table>
+<p class="caption">Tabelle 7: STRIDE-Kategorien mit verletzter Eigenschaft und Leitfrage.</p>
+
+<h2>2.3 Bedrohungsidentifikation</h2>
+<p style="font-style:italic;">
+  Die Risikobewertungen spiegeln den Zustand ohne angewendete Mitigationen wider. Die Spalte „Mögliche Mitigationen"
+  wird in Phase 3 ausgefüllt. Ausnahme: Bei Bedrohungen, deren Schutzmaßnahme bereits im Code implementiert ist
+  (T-11 und T-15, jeweils gekennzeichnet), ist die Bewertung als Restrisiko <em>nach</em> der bestehenden Kontrolle
+  angegeben; das jeweilige Vor-Mitigation-Niveau ist im Bedrohungstext genannt.
+</p>
+<table>
+  <thead>
+    <tr>
+      <th>T-ID</th>
+      <th>Komponente &amp; Asset</th>
+      <th>Bedrohung</th>
+      <th style="width:26px;text-align:center;">S</th>
+      <th style="width:26px;text-align:center;">T</th>
+      <th style="width:26px;text-align:center;">R</th>
+      <th style="width:26px;text-align:center;">I</th>
+      <th style="width:26px;text-align:center;">D</th>
+      <th style="width:26px;text-align:center;">E</th>
+      <th>Wahrschein&shy;lichkeit</th>
+      <th>Auswirkung</th>
+      <th>Gesamt&shy;risiko</th>
+      <th>Mögliche Mitigationen</th>
+    </tr>
+  </thead>
+  <tbody>
+
+    <tr class="tb-row"><td colspan="13">TB-2 · Passwortgeschützter Dateiaustausch</td></tr>
+
+    <tr>
+      <td>T-01</td>
+      <td>answer.yaml-Upload (Passwort B)<br /><small style="color:#888;">A01</small></td>
+      <td>Ein authentifizierter (böswilliger) Nutzer kann über das Gruppen-Passwort B eine answer.yaml hochladen, die mangels individueller Identität und Protokollierung keinem konkreten Befragten zugeordnet werden kann; Einreichungen sind nicht nachvollziehbar und abstreitbar.</td>
+      <td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td>
+      <td>Mittel<br /><small style="color:#888;">5,9</small></td>
+      <td>Niedrig<br /><small style="color:#888;">3,0</small></td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td style="color:#999;font-style:italic;">— wird in Phase 3 ergänzt —</td>
+    </tr>
+
+    <tr>
+      <td>T-02</td>
+      <td>answer.yaml auf der Plattform (Passwort B, nur Upload)<br /><small style="color:#888;">A01</small></td>
+      <td>PII-haltige answer.yaml (A01, C=sehr hoch) könnte offengelegt werden. Da Passwort B jedoch <em>nur das Hochladen</em> in eine schreibgeschützte Ablage erlaubt (kein Lesen/Auflisten), setzt eine Offenlegung eine Kompromittierung der (außerhalb des Scopes liegenden) Austauschplattform voraus.</td>
+      <td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;"></td>
+      <td>Niedrig*<br /><small style="color:#888;">3,6 · RO</small></td>
+      <td>Mittel<br /><small style="color:#888;">5,8</small></td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td style="color:#999;font-style:italic;">— wird in Phase 3 ergänzt —</td>
+    </tr>
+
+    <tr>
+      <td>T-03</td>
+      <td>answer.yaml-Upload (Passwort B)<br /><small style="color:#888;">A01</small></td>
+      <td>Ein Akteur mit Passwort B lädt eine manipulierte/gefälschte answer.yaml hoch (oder verändert eine in Übertragung) → verfälschte bzw. betrügerische Antworten gelangen in die Auswertung (Parsing-Risiko siehe T-10).</td>
+      <td style="text-align:center;"></td><td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td>
+      <td>Mittel<br /><small style="color:#888;">5,6</small></td>
+      <td>Niedrig<br /><small style="color:#888;">2,5</small></td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td style="color:#999;font-style:italic;">— wird in Phase 3 ergänzt —</td>
+    </tr>
+
+    <tr>
+      <td>T-04</td>
+      <td>answer.yaml-Ablage<br /><small style="color:#888;">A01</small></td>
+      <td><strong>ZURÜCKGEZOGEN.</strong> Ursprünglich: Löschen/Überschreiben/Fluten von Antwortdateien. Entfällt, da Passwort B nur anhängendes Hochladen in eine schreibgeschützte Ablage erlaubt — Lesen, Auflisten, Überschreiben und Löschen sind nicht möglich (gleiche Nur-Upload-Eigenschaft wie T-02). Zur Nachvollziehbarkeit dokumentiert.</td>
+      <td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;color:#bbb;">(d)</td><td style="text-align:center;"></td>
+      <td style="color:#999;">—</td>
+      <td style="color:#999;">—</td>
+      <td style="color:#999;font-style:italic;">zurückgezogen</td>
+      <td style="color:#999;font-style:italic;">—</td>
+    </tr>
+
+    <tr>
+      <td>T-05</td>
+      <td>Client-HTML-Download (Passwort A)<br /><small style="color:#888;">A02</small></td>
+      <td>Ein Akteur mit geleaktem Passwort A lädt die Client-HTML herunter und legt damit die Umfragedefinition (Fragen/Struktur, A02) gegenüber einer unbefugten Partei offen. Passwort A ist – anders als B – lese-/downloadfähig.</td>
+      <td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;"></td>
+      <td>Mittel<br /><small style="color:#888;">6,0</small></td>
+      <td>Niedrig<br /><small style="color:#888;">2,0</small></td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td style="color:#999;font-style:italic;">— wird in Phase 3 ergänzt —</td>
+    </tr>
+
+    <tr class="tb-row"><td colspan="13">TB-3 · Respondenten-Rechner</td></tr>
+
+    <tr>
+      <td>T-06</td>
+      <td>Client-Ausfüllung / Export<br /><small style="color:#888;">A01</small></td>
+      <td>Ein böswilliger Befragter, der seinen eigenen Client vollständig kontrolliert, umgeht die clientseitige Validierung (die keine Sicherheitskontrolle ist) und erzeugt eine beliebige/fehlerhafte answer.yaml → betrügerische oder parser-feindliche Eingabe, die in den Manager gelangt (Eingang zu T-10).</td>
+      <td style="text-align:center;"></td><td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;">x</td>
+      <td>Hoch<br /><small style="color:#888;">6,5</small></td>
+      <td>Niedrig<br /><small style="color:#888;">3,0</small></td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#ffeb9c;color:#000">[MITTEL]</span></td>
+      <td style="color:#999;font-style:italic;">— wird in Phase 3 ergänzt —</td>
+    </tr>
+
+    <tr>
+      <td>T-07</td>
+      <td>localStorage (Befragter)<br /><small style="color:#888;">A01, A02</small></td>
+      <td>Ein kompromittierter Browser/Rechner eines Befragten exfiltriert dessen eigene unverschlüsselte Antworten (A01) sowie die eingebettete Umfragedefinition (A02). Umfang begrenzt auf die Daten eines einzelnen Befragten.</td>
+      <td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;"></td>
+      <td>Hoch<br /><small style="color:#888;">6,1</small></td>
+      <td>Niedrig<br /><small style="color:#888;">3,0</small></td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#ffeb9c;color:#000">[MITTEL]</span></td>
+      <td style="color:#999;font-style:italic;">— wird in Phase 3 ergänzt —</td>
+    </tr>
+
+    <tr>
+      <td>T-08</td>
+      <td>Client-HTML (lokale Kopie)<br /><small style="color:#888;">A03, A02</small></td>
+      <td>Ein kompromittierter Rechner manipuliert die Client-HTML vor/beim Öffnen (eingebettete Umfragedefinition oder App-Logik). Der Hash-basierte CSP verhindert eingeschleuste Skripte zur Laufzeit, ist aber kein Schutz gegen einen Angreifer, der die Datei ändert und den Hash neu berechnet. Wirkung bleibt lokal.</td>
+      <td style="text-align:center;"></td><td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td>
+      <td>Mittel<br /><small style="color:#888;">5,9</small></td>
+      <td>Niedrig<br /><small style="color:#888;">2,8</small></td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td style="color:#999;font-style:italic;">— wird in Phase 3 ergänzt —</td>
+    </tr>
+
+    <tr class="tb-row"><td colspan="13">TB-1 · Operator-Rechner</td></tr>
+
+    <tr>
+      <td>T-09</td>
+      <td>Vendored js-yaml (Manager &amp; Client)<br /><small style="color:#888;">A03, A01, A02</small></td>
+      <td>Supply-Chain: Schadcode in einer künftig neu eingebetteten js-yaml-Version läuft im Manager (und in jedem Client) mit vollem Seitenkontext → Exfiltration <em>aller</em> Antwortdaten und Manipulation der Ergebnisse/Logik.</td>
+      <td style="text-align:center;"></td><td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;">x</td>
+      <td>Niedrig*<br /><small style="color:#888;">4,5 · RO</small></td>
+      <td>Hoch<br /><small style="color:#888;">7,0</small></td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#ffeb9c;color:#000">[MITTEL]</span></td>
+      <td style="color:#999;font-style:italic;">— wird in Phase 3 ergänzt —</td>
+    </tr>
+
+    <tr>
+      <td>T-10</td>
+      <td>answer.yaml-Import (importAnswerFiles / jsyaml.load)<br /><small style="color:#888;">A01, A02</small></td>
+      <td>Eine gefertigte/fehlerhafte answer.yaml nutzt den Import aus (keine Schema-Validierung) → Zustandskorruption oder Absturz der Auswertung. js-yaml 4.x ist standardmäßig sicher (keine Instanziierung beliebiger Typen) → kein RCE; unvalidiert bleibt nur die Struktur/Shape.</td>
+      <td style="text-align:center;"></td><td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;">x</td><td style="text-align:center;"></td>
+      <td>Mittel<br /><small style="color:#888;">4,6</small></td>
+      <td>Niedrig<br /><small style="color:#888;">2,5</small></td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td style="color:#999;font-style:italic;">— wird in Phase 3 ergänzt —</td>
+    </tr>
+
+    <tr>
+      <td>T-11</td>
+      <td>exportResultCsv (CSV-Export)<br /><small style="color:#888;">A01</small></td>
+      <td>CSV-/Excel-Formelinjektion (CWE-1236) über importierte Antwortwerte mit führendem =/+/-/@ → Befehlsausführung beim Öffnen der CSV durch den Operator. <strong>Bereits mitigiert</strong> durch <code>csvSafeCell()</code> (Commit 11bbf96). <em>Ohne Mitigation wäre dies HOCH.</em></td>
+      <td style="text-align:center;"></td><td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;">x</td>
+      <td>Mittel<br /><small style="color:#888;">4,4</small></td>
+      <td>Niedrig<br /><small style="color:#888;">1,0 · Rest</small></td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td style="color:#999;font-style:italic;">Kontrolle bereits umgesetzt (Phase 3: als bestehend erfassen)</td>
+    </tr>
+
+    <tr>
+      <td>T-12</td>
+      <td>localStorage / UmfrageManager.html (Operator)<br /><small style="color:#888;">A01, A02, A03</small></td>
+      <td>Ein kompromittierter Operator-Rechner liest <em>alle</em> Antwortdaten sämtlicher Umfragen (A01, gesamter Datenbestand, C=sehr hoch) und manipuliert gespeicherte Ergebnisse bzw. die App-Logik. Das „Kronjuwel"-Vertraulichkeitsrisiko.</td>
+      <td style="text-align:center;">x</td><td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;"></td>
+      <td>Hoch<br /><small style="color:#888;">6,1</small></td>
+      <td>Hoch<br /><small style="color:#888;">6,9</small></td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#d9534f;color:#fff">[KRITISCH]</span></td>
+      <td style="color:#999;font-style:italic;">Risiko akzeptiert (umgebungsbedingt) — Details in Phase 3</td>
+    </tr>
+
+    <tr>
+      <td>T-13</td>
+      <td>Fehlende Protokollierung (Operator)<br /><small style="color:#888;">A01, A02</small></td>
+      <td>Die Anwendung protokolliert keinerlei Aktionen (Import/Export/Bearbeitung) → operatorseitige Handlungen sind nicht zuordenbar, ein Fehlverhalten im Datenumgang bleibt unentdeckt. Operatorseitiges Gegenstück zu T-01.</td>
+      <td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td>
+      <td>Hoch<br /><small style="color:#888;">6,1</small></td>
+      <td>Niedrig<br /><small style="color:#888;">2,0</small></td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#ffeb9c;color:#000">[MITTEL]</span></td>
+      <td style="color:#999;font-style:italic;">— wird in Phase 3 ergänzt —</td>
+    </tr>
+
+    <tr>
+      <td>T-14</td>
+      <td>Daten im Ruhezustand (unverschlüsselt)<br /><small style="color:#888;">A01</small></td>
+      <td>Antworten (A01, PII) und Definitionen liegen unverschlüsselt in localStorage sowie in exportierten CSV-/YAML-Dateien auf der Festplatte → Offenlegung über geteilte Rechner, Backups oder Diebstahl. Bekannte, akzeptierte Eigenschaft (siehe CLAUDE.md / README).</td>
+      <td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;"></td><td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;"></td>
+      <td>Mittel<br /><small style="color:#888;">4,3</small></td>
+      <td>Niedrig<br /><small style="color:#888;">2,6</small></td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td style="color:#999;font-style:italic;">Akzeptierte Eigenschaft — Details in Phase 3</td>
+    </tr>
+
+    <tr>
+      <td>T-15</td>
+      <td>DOM-Rendering importierter Daten<br /><small style="color:#888;">A03, A01, A02</small></td>
+      <td>Stored XSS über importierte Umfrage-/Antwortdaten (Namen, Fragetexte, Optionen, Antworten), die ins DOM gerendert werden → Skriptausführung im Operator-/Befragten-Kontext (≈ Reichweite von T-12). <strong>Bereits mitigiert</strong>: textContent/createElement-Invariante; escapeHtml() + &lt;/script&gt;-Neutralisierung in buildClientHtml; Hash-CSP als Defense-in-Depth. <em>Ohne Mitigation wäre dies KRITISCH.</em></td>
+      <td style="text-align:center;"></td><td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;">x</td><td style="text-align:center;"></td><td style="text-align:center;">x</td>
+      <td>Mittel<br /><small style="color:#888;">4,4</small></td>
+      <td>Niedrig<br /><small style="color:#888;">1,0 · Rest</small></td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td style="color:#999;font-style:italic;">Kontrolle bereits umgesetzt (Phase 3: als bestehend erfassen)</td>
+    </tr>
+
+  </tbody>
+</table>
+<p class="caption">
+  Tabelle 8: Identifizierte Bedrohungen je Vertrauensgrenze mit STRIDE-Zuordnung und Risikobewertung (ohne Mitigationen,
+  sofern nicht anders gekennzeichnet). 14 aktive Bedrohungen (T-04 zurückgezogen): 1 Kritisch · 0 Hoch · 4 Mittel ·
+  9 Niedrig. „RO" = Risk-Owner-Einstufung unterhalb des rechnerischen Mittelwerts (die feste Angriffserkennung = 9 hebt
+  die meisten Wahrscheinlichkeits-Mittelwerte strukturell an); „Rest" = Restrisiko nach bereits umgesetzter Kontrolle.
+</p>
+
+
+<hr style="border:none;border-top:1px solid #ccc;margin:56px 0;" />
+
+
+<h1>3. Was können wir dagegen tun?</h1>
+
+<h2>3.1 Bedrohungen und mögliche Mitigationen</h2>
+<p>
+  Diese Tabelle gibt einen Überblick über alle identifizierten Bedrohungen zusammen mit den vorgeschlagenen Mitigationen.
+  Die Spalten „Umgesetzte Mitigationen", „Restrisiko" und „Anmerkungen" werden vom Modellierer nach Abstimmung des
+  aktuellen Umsetzungsstands mit dem Entwicklungsteam in Phase 4 ausgefüllt.
+</p>
+<table>
+  <thead>
+    <tr>
+      <th>T-ID</th>
+      <th>Komponente &amp; Asset</th>
+      <th>Bedrohung</th>
+      <th>Gesamt&shy;risiko</th>
+      <th>Mögliche Mitigationen</th>
+      <th>Umgesetzte Mitigationen</th>
+      <th>Restrisiko</th>
+      <th>Anmerkungen</th>
+    </tr>
+  </thead>
+  <tbody>
+
+    <tr class="tb-row"><td colspan="8">TB-2 · Passwortgeschützter Dateiaustausch</td></tr>
+
+    <tr>
+      <td>T-01</td>
+      <td>answer.yaml-Upload (Passwort B)<br /><small style="color:#888;">A01</small></td>
+      <td>Ein authentifizierter (böswilliger) Nutzer kann über das Gruppen-Passwort B eine answer.yaml hochladen, die mangels individueller Identität und Protokollierung keinem konkreten Befragten zugeordnet werden kann; Einreichungen sind nicht nachvollziehbar und abstreitbar.</td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td><ul><li><strong>Risiko akzeptiert — keine Kontrolle vorgesehen.</strong> Die Zuordnung einzelner Uploads zu konkreten Befragten ist im aktuellen Nutzungskontext nicht erforderlich (entspricht der bisherigen Basislinie des Excel-Austauschs). Ein clientseitiges Protokoll wäre durch einen böswilligen/kompromittierten Operator fälschbar. Individuelle Kennungen/Protokollierung sind als mögliche künftige Anforderung vorgemerkt.</li></ul></td>
+      <td></td><td></td><td></td>
+    </tr>
+
+    <tr>
+      <td>T-02</td>
+      <td>answer.yaml auf der Plattform (Passwort B, nur Upload)<br /><small style="color:#888;">A01</small></td>
+      <td>PII-haltige answer.yaml (A01, C=sehr hoch) könnte offengelegt werden. Da Passwort B nur das Hochladen in eine schreibgeschützte Ablage erlaubt, setzt eine Offenlegung eine Kompromittierung der (außerhalb des Scopes liegenden) Austauschplattform voraus.</td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td><ul>
+        <li>Nutzungsempfehlungen an den Operator zur Plattform: Passwort A und Passwort B für jede Umfrage neu vergeben (rotieren); den Ablauf des Download-Links nach Abschluss der Verteilung aktivieren; abgerufene answer.yaml-Dateien nach dem Import zeitnah von der Ablage entfernen (die Plattform ist als vertrauenswürdig eingestuft und für die Datenhaltung freigegeben, daher dient das Entfernen der Datensparsamkeit/Hygiene); Passwort B strikt „nur Upload" (write-only) halten. (M-01)</li>
+        <li>Datensparsamkeit im Umfragedesign: auf die Erhebung unnötiger direkter personenbezogener Identifikatoren verzichten, nur für die Auswertung erforderliche Angaben abfragen. (M-02)</li>
+      </ul></td>
+      <td></td><td></td><td></td>
+    </tr>
+
+    <tr>
+      <td>T-03</td>
+      <td>answer.yaml-Upload (Passwort B)<br /><small style="color:#888;">A01</small></td>
+      <td>Ein Akteur mit Passwort B lädt eine manipulierte/gefälschte answer.yaml hoch → verfälschte bzw. betrügerische Antworten gelangen in die Auswertung (Parsing-Risiko siehe T-10).</td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td><ul><li>Schema- und Konsistenzprüfung beim Import einer answer.yaml gegen die zugehörige Umfragedefinition: unbekannte oder fehlende Frage-IDs, falsche Datentypen, Werte außerhalb des zulässigen Bereichs sowie doppelte Einreichungen ablehnen oder als Anomalie melden. <em>Künftige Verbesserung.</em> (M-03)</li></ul></td>
+      <td></td><td></td><td></td>
+    </tr>
+
+    <tr>
+      <td>T-04</td>
+      <td>answer.yaml-Ablage<br /><small style="color:#888;">A01</small></td>
+      <td><strong>ZURÜCKGEZOGEN.</strong> Löschen/Überschreiben/Fluten von Antwortdateien entfällt, da Passwort B nur anhängendes Hochladen in eine schreibgeschützte Ablage erlaubt (kein Lesen/Auflisten/Überschreiben/Löschen).</td>
+      <td style="color:#999;font-style:italic;">zurückgezogen</td>
+      <td style="color:#999;font-style:italic;">—</td>
+      <td></td><td></td>
+    </tr>
+
+    <tr>
+      <td>T-05</td>
+      <td>Client-HTML-Download (Passwort A)<br /><small style="color:#888;">A02</small></td>
+      <td>Ein Akteur mit geleaktem Passwort A lädt die Client-HTML herunter und legt damit die Umfragedefinition (Fragen/Struktur, A02) gegenüber einer unbefugten Partei offen.</td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td><ul><li>Nutzungsempfehlungen an den Operator zur Plattform: Passwort A pro Umfrage rotieren und den Download-Link nach Abschluss der Verteilung ablaufen lassen; abgerufene Dateien zeitnah entfernen. (M-01)</li></ul></td>
+      <td></td><td></td><td></td>
+    </tr>
+
+    <tr class="tb-row"><td colspan="8">TB-3 · Respondenten-Rechner</td></tr>
+
+    <tr>
+      <td>T-06</td>
+      <td>Client-Ausfüllung / Export<br /><small style="color:#888;">A01</small></td>
+      <td>Ein böswilliger Befragter, der seinen eigenen Client vollständig kontrolliert, umgeht die clientseitige Validierung (keine Sicherheitskontrolle) und erzeugt eine beliebige/fehlerhafte answer.yaml, die in den Manager gelangt.</td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#ffeb9c;color:#000">[MITTEL]</span></td>
+      <td><ul><li>Schema- und Konsistenzprüfung beim Import gegen die Umfragedefinition (unbekannte Frage-IDs, falsche Typen, Werte außerhalb des Bereichs, Duplikate ablehnen/melden). <em>Künftige Verbesserung.</em> (M-03)</li><li><em>Teilweise akzeptiertes Restrisiko:</em> Eine Selbstbedienungs-Umfrage erlaubt es einem Befragten grundsätzlich, beliebig zu antworten; die Wirkung ist auf eine von 40 Antworten begrenzt.</li></ul></td>
+      <td></td><td></td><td></td>
+    </tr>
+
+    <tr>
+      <td>T-07</td>
+      <td>localStorage (Befragter)<br /><small style="color:#888;">A01, A02</small></td>
+      <td>Ein kompromittierter Browser/Rechner eines Befragten exfiltriert dessen eigene unverschlüsselte Antworten (A01) sowie die eingebettete Umfragedefinition (A02). Umfang auf einen einzelnen Befragten begrenzt.</td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#ffeb9c;color:#000">[MITTEL]</span></td>
+      <td><ul>
+        <li><strong>Bereits implementiert:</strong> Der Client stellt die Schaltflächen „Daten dieser Umfrage löschen" und „Alle Client-Daten löschen" bereit; Befragte können ihre lokal gespeicherten Antworten selbst entfernen und so das Exfiltrations-Zeitfenster verkleinern. (M-04)</li>
+        <li>Datensparsamkeit im Umfragedesign (keine unnötigen Identifikatoren). (M-02)</li>
+        <li><em>Restrisiko umgebungsbedingt, akzeptiert:</em> Ein kompromittierter Rechner eines Befragten liegt außerhalb der Kontrolle der Anwendung.</li>
+      </ul></td>
+      <td></td><td></td><td></td>
+    </tr>
+
+    <tr>
+      <td>T-08</td>
+      <td>Client-HTML (lokale Kopie)<br /><small style="color:#888;">A03, A02</small></td>
+      <td>Ein kompromittierter Rechner manipuliert die Client-HTML vor/beim Öffnen. Der Hash-CSP verhindert eingeschleuste Skripte zur Laufzeit, ist aber kein Schutz gegen einen Angreifer, der die Datei ändert und den Hash neu berechnet. Wirkung bleibt lokal.</td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td><ul>
+        <li><strong>Bereits implementiert:</strong> Hash-basierter Content-Security-Policy in beiden Dokumenten, Verzicht auf eval()/new Function(), js-yaml inline eingebettet (kein CDN) — als Defense-in-Depth. (M-05)</li>
+        <li><em>Restrisiko umgebungsbedingt, akzeptiert:</em> lokale Dateimanipulation auf einem kompromittierten Rechner.</li>
+      </ul></td>
+      <td></td><td></td><td></td>
+    </tr>
+
+    <tr class="tb-row"><td colspan="8">TB-1 · Operator-Rechner</td></tr>
+
+    <tr>
+      <td>T-09</td>
+      <td>Vendored js-yaml (Manager &amp; Client)<br /><small style="color:#888;">A03, A01, A02</small></td>
+      <td>Supply-Chain: Schadcode in einer künftig neu eingebetteten js-yaml-Version läuft im Manager (und in jedem Client) mit vollem Seitenkontext → Exfiltration aller Antwortdaten und Manipulation der Ergebnisse/Logik.</td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#ffeb9c;color:#000">[MITTEL]</span></td>
+      <td><ul>
+        <li><strong>Bereits implementiert:</strong> Hash-basierter CSP, kein eval()/new Function(), js-yaml inline eingebettet (kein CDN). (M-05)</li>
+        <li>Prozesskontrolle beim künftigen Neu-Einbetten von js-yaml: Integrität der Quelle gegen die offizielle Release prüfen (Checksumme/Signatur), Diff der eingebetteten Bibliothek reviewen und die CSP-Skript-Hashes im Manager neu berechnen (wie in CLAUDE.md dokumentiert). (M-07)</li>
+      </ul></td>
+      <td></td><td></td><td></td>
+    </tr>
+
+    <tr>
+      <td>T-10</td>
+      <td>answer.yaml-Import (importAnswerFiles / jsyaml.load)<br /><small style="color:#888;">A01, A02</small></td>
+      <td>Eine gefertigte/fehlerhafte answer.yaml nutzt den Import aus (keine Schema-Validierung) → Zustandskorruption oder Absturz der Auswertung. js-yaml 4.x ist standardmäßig sicher (keine Instanziierung beliebiger Typen) → kein RCE.</td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td><ul>
+        <li>Schema- und Konsistenzprüfung des Imports gegen die Umfragedefinition (Typen/Wertebereiche/Frage-IDs), robustes Scheitern ohne Zustandskorruption. <em>Künftige Verbesserung.</em> (M-03)</li>
+        <li><em>Bestehende Teilkontrolle:</em> js-yaml 4.x mit Standard-Schema (keine Instanziierung beliebiger Typen → kein RCE).</li>
+      </ul></td>
+      <td></td><td></td><td></td>
+    </tr>
+
+    <tr>
+      <td>T-11</td>
+      <td>exportResultCsv (CSV-Export)<br /><small style="color:#888;">A01</small></td>
+      <td>CSV-/Excel-Formelinjektion (CWE-1236) über importierte Antwortwerte mit führendem =/+/-/@ → Befehlsausführung beim Öffnen der CSV. <em>Ohne Mitigation HOCH.</em></td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td><ul><li><strong>Bereits implementiert:</strong> CSV-Zellen werden durch csvSafeCell() gegen Formelinjektion abgesichert (führendes Apostroph bei =,+,-,@,Tab,CR; Anführungszeichen verdoppelt). Teil des gemeinsamen XSS-/Injection-Schutzes zusammen mit der textContent/createElement-Invariante und escapeHtml(). (M-06)</li></ul></td>
+      <td></td><td></td><td></td>
+    </tr>
+
+    <tr>
+      <td>T-12</td>
+      <td>localStorage / UmfrageManager.html (Operator)<br /><small style="color:#888;">A01, A02, A03</small></td>
+      <td>Ein kompromittierter Operator-Rechner liest alle Antwortdaten sämtlicher Umfragen (A01, gesamter Datenbestand, C=sehr hoch) und manipuliert gespeicherte Ergebnisse bzw. die App-Logik. Das „Kronjuwel"-Risiko.</td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#d9534f;color:#fff">[KRITISCH]</span></td>
+      <td><ul>
+        <li><strong>Risiko akzeptiert (umgebungsbedingt).</strong> Ein vollständig kompromittierter Operator-Rechner überwindet jede rein clientseitige Anwendung unabhängig von ihrem Design (konsistent mit der in CLAUDE.md akzeptierten unverschlüsselten localStorage-Haltung).</li>
+        <li><strong>Außerhalb des Scopes dieser App / nicht Teil der Anwendung:</strong> Betriebsempfehlung, den Operator-Rechner gehärtet zu betreiben (Festplattenverschlüsselung, Zugriffsschutz/Bildschirmsperre, kein geteilter Rechner, aktuelle Anti-Malware). Senkt das Restrisiko, wird aber nicht durch die App adressiert. (M-08)</li>
+      </ul></td>
+      <td></td><td></td><td></td>
+    </tr>
+
+    <tr>
+      <td>T-13</td>
+      <td>Fehlende Protokollierung (Operator)<br /><small style="color:#888;">A01, A02</small></td>
+      <td>Die Anwendung protokolliert keine Aktionen (Import/Export/Bearbeitung) → operatorseitige Handlungen sind nicht zuordenbar, Fehlverhalten im Datenumgang bleibt unentdeckt. Gegenstück zu T-01.</td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#ffeb9c;color:#000">[MITTEL]</span></td>
+      <td><ul><li><strong>Risiko akzeptiert — keine Kontrolle vorgesehen.</strong> Eine Protokollierung ist im aktuellen Nutzungskontext nicht erforderlich (entspricht der bisherigen Excel-Basislinie). Als mögliche künftige Erweiterung vorgemerkt.</li></ul></td>
+      <td></td><td></td><td></td>
+    </tr>
+
+    <tr>
+      <td>T-14</td>
+      <td>Daten im Ruhezustand (unverschlüsselt)<br /><small style="color:#888;">A01</small></td>
+      <td>Antworten (A01, PII) und Definitionen liegen unverschlüsselt in localStorage sowie in exportierten CSV-/YAML-Dateien → Offenlegung über geteilte Rechner, Backups oder Diebstahl. Bekannte, akzeptierte Eigenschaft.</td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td><ul>
+        <li><strong>Akzeptierte Eigenschaft</strong> (dokumentiert in CLAUDE.md/README): unverschlüsselte Haltung in localStorage und exportierten Dateien.</li>
+        <li>Datensparsamkeit im Umfragedesign (keine unnötigen Identifikatoren). (M-02)</li>
+        <li><strong>Außerhalb des Scopes:</strong> gehärteter Betrieb des Operator-Rechners (Festplattenverschlüsselung u. a.). (M-08)</li>
+      </ul></td>
+      <td></td><td></td><td></td>
+    </tr>
+
+    <tr>
+      <td>T-15</td>
+      <td>DOM-Rendering importierter Daten<br /><small style="color:#888;">A03, A01, A02</small></td>
+      <td>Stored XSS über importierte Umfrage-/Antwortdaten, die ins DOM gerendert werden → Skriptausführung im Operator-/Befragten-Kontext. <em>Ohne Mitigation KRITISCH.</em></td>
+      <td><span style="padding:2px 7px;border-radius:3px;font-size:12px;font-family:Arial,sans-serif;background:#c6efce;color:#000">[NIEDRIG]</span></td>
+      <td><ul>
+        <li><strong>Bereits implementiert:</strong> Sämtliches dynamisches Rendern erfolgt über textContent/createElement (keine innerHTML-Zuweisung von Daten); die einzige Roh-HTML-Ausnahme (buildClientHtml) nutzt escapeHtml() für interpolierte Zeichenketten und neutralisiert &lt;/script&gt; im eingebetteten JSON; zusätzlich csvSafeCell() für CSV. (M-06)</li>
+        <li><strong>Bereits implementiert:</strong> Hash-basierter CSP als Defense-in-Depth. (M-05)</li>
+      </ul></td>
+      <td></td><td></td><td></td>
+    </tr>
+
+  </tbody>
+</table>
+<p class="caption">
+  Tabelle 9: Bedrohungsübersicht mit vollständig ausformulierten möglichen Mitigationen. „Umgesetzte Mitigationen",
+  „Restrisiko" und „Anmerkungen" werden im Workshop (Phase 4) ergänzt. T-01 und T-13 sind bewusst ohne Kontrolle
+  akzeptiert; T-12 ist als kritisch akzeptiert (umgebungsbedingt).
+</p>
+
+<h2>3.2 Mitigationsliste</h2>
+<p>
+  Die folgende Tabelle listet alle vorgeschlagenen Mitigationen mit eindeutigen IDs, den adressierten Bedrohungen und
+  den Umsetzungsdetails auf. Status, Verantwortliche/r und Restrisiko werden im Team-Workshop in Phase 4 ausgefüllt.
+</p>
+<table>
+  <thead>
+    <tr>
+      <th style="width:50px;">M-ID</th>
+      <th style="width:90px;">Bedrohungs-IDs</th>
+      <th style="width:150px;">Komponente</th>
+      <th>Beschreibung</th>
+      <th style="width:95px;">Typ</th>
+      <th style="width:110px;">Status</th>
+      <th style="width:85px;">Verant&shy;wortlich</th>
+      <th style="width:95px;">Reevaluierung / Restrisiko</th>
+      <th style="width:85px;">Anmerkungen</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="background:#fff;">
+      <td>M-01</td>
+      <td>T-02, T-05</td>
+      <td>Betrieb (Operator-Anleitung)</td>
+      <td>Nutzungsempfehlungen zur Austauschplattform: Passwort A und B pro Umfrage neu vergeben (rotieren); Download-Link-Ablauf nach der Verteilung aktivieren; abgerufene answer.yaml nach dem Import zeitnah von der Ablage entfernen (Plattform vertrauenswürdig/freigegeben → Datensparsamkeit/Hygiene); Passwort B strikt write-only halten.</td>
+      <td>Präventiv</td>
+      <td></td><td></td><td></td><td></td>
+    </tr>
+    <tr style="background:#fff;">
+      <td>M-02</td>
+      <td>T-02, T-14</td>
+      <td>Umfragedesign</td>
+      <td>Datensparsamkeit: beim Erstellen von Umfragen auf die Erhebung unnötiger direkter personenbezogener Identifikatoren verzichten; nur die für die Auswertung erforderlichen Angaben abfragen. Verringert die Sensibilität der gespeicherten und übertragenen Antwortdaten.</td>
+      <td>Präventiv</td>
+      <td></td><td></td><td></td><td></td>
+    </tr>
+    <tr style="background:#fff;">
+      <td>M-03</td>
+      <td>T-03, T-06, T-10</td>
+      <td>UmfrageManager (Import)</td>
+      <td>Schema- und Konsistenzprüfung beim Import einer answer.yaml gegen die zugehörige Umfragedefinition: unbekannte/fehlende Frage-IDs, falsche Datentypen, Werte außerhalb des zulässigen Bereichs und doppelte Einreichungen ablehnen oder als Anomalie melden; robustes Scheitern ohne Zustandskorruption. <strong>Künftige Verbesserung.</strong></td>
+      <td>Präventiv / Detektiv</td>
+      <td></td><td></td><td></td><td></td>
+    </tr>
+    <tr style="background:#fff;">
+      <td>M-04</td>
+      <td>T-07</td>
+      <td>Generierter Client</td>
+      <td>Der generierte Client stellt zwei Schaltflächen bereit: „Daten dieser Umfrage löschen" (btn-clear-survey) und „Alle Client-Daten löschen" (btn-clear-all). Befragte können ihre lokal im Browser gespeicherten Antworten jederzeit selbst entfernen. <strong>Bereits implementiert.</strong></td>
+      <td>Korrektiv</td>
+      <td>Umgesetzt</td><td></td><td></td><td></td>
+    </tr>
+    <tr style="background:#fff;">
+      <td>M-05</td>
+      <td>T-08, T-09</td>
+      <td>Beide HTML-Dokumente</td>
+      <td>Integritäts-/Supply-Chain-Härtung: hash-basierter Content-Security-Policy (script-src mit SHA-256-Hash je Skriptblock), vollständiger Verzicht auf eval()/new Function(), js-yaml inline eingebettet (kein CDN, keine Laufzeit-Abhängigkeit von externen Quellen). <strong>Bereits implementiert.</strong></td>
+      <td>Präventiv</td>
+      <td>Umgesetzt</td><td></td><td></td><td></td>
+    </tr>
+    <tr style="background:#fff;">
+      <td>M-06</td>
+      <td>T-11, T-15</td>
+      <td>UmfrageManager + gen. Client</td>
+      <td>XSS-/Injection-Schutz: dynamisches Rendern ausschließlich über textContent/createElement (keine innerHTML-Zuweisung von Daten); escapeHtml() für interpolierte Zeichenketten und &lt;/script&gt;-Neutralisierung im eingebetteten JSON (buildClientHtml); csvSafeCell() gegen CSV-Formelinjektion (CWE-1236). <strong>Bereits implementiert.</strong></td>
+      <td>Präventiv</td>
+      <td>Umgesetzt</td><td></td><td></td><td></td>
+    </tr>
+    <tr style="background:#fff;">
+      <td>M-07</td>
+      <td>T-09</td>
+      <td>Build-/Vendoring-Prozess</td>
+      <td>Prozesskontrolle beim künftigen Neu-Einbetten von js-yaml: Integrität der Quelle gegen die offizielle Release prüfen (Checksumme/Signatur), Diff der eingebetteten Bibliothek reviewen und anschließend die CSP-Skript-Hashes im Manager neu berechnen (wie in CLAUDE.md dokumentiert).</td>
+      <td>Präventiv</td>
+      <td></td><td></td><td></td><td></td>
+    </tr>
+    <tr style="background:#fff;">
+      <td>M-08</td>
+      <td>T-12, T-14</td>
+      <td>Betrieb (Operator-Endpoint) — <strong>außerhalb des Scopes</strong></td>
+      <td><strong>Außerhalb des Scopes dieser Anwendung und nicht Teil des Tools:</strong> Der Operator-Rechner sollte gehärtet betrieben werden (Festplattenverschlüsselung, Zugriffsschutz/Bildschirmsperre, kein geteilter Rechner, aktuelle Anti-Malware). Das Restrisiko von T-12/T-14 sinkt beim Betrieb auf einem gehärteten System, wird aber nicht durch die App selbst adressiert.</td>
+      <td>Präventiv (umgebungs&shy;bedingt)</td>
+      <td></td><td></td><td></td><td></td>
+    </tr>
+  </tbody>
+</table>
+<p class="caption">
+  Tabelle 10: Mitigationsliste. 8 Mitigationen — davon 3 bereits umgesetzt (M-04, M-05, M-06), 1 künftige Verbesserung
+  (M-03), 1 außerhalb des Scopes (M-08). Status, Verantwortliche/r und Restrisiko werden im Workshop (Phase 4) ergänzt.
+  Nicht durch eine Mitigation adressiert, sondern bewusst akzeptiert: T-01 und T-13 (Repudiation/Protokollierung).
+</p>
+
+</body>
+</html>
