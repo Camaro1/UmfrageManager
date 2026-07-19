@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-S51VYUB9RDgsoGEjgOnzSUcCN6z2gSqFlIAEqhiO410=' 'sha256-HuNdMEt3loQO5mYGKD+jd+ooX9IkAtBOx91LAbHpGDs='; style-src 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; connect-src 'none'">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Umfrage-Client</title>
+  <style>
+/* ============================================================
+   Shared base styles (used by both the manager UI and the
+   generated respondent-facing client).
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+label { font-size: 0.8125rem; font-weight: 500; color: var(--muted); }
+
+.btn { padding: 0.5rem 1rem; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 0.875rem; font-weight: 500; background: var(--surface); color: var(--text); transition: all 0.15s; }
+.btn:hover { background: var(--bg); }
+.btn-primary { background: var(--primary); color: white; border-color: var(--primary); }
+.btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+.btn-danger { color: var(--danger); border-color: var(--danger); }
+.btn-danger:hover { background: var(--danger); color: white; }
+.btn-bar { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+#ls-banner { background: #fef3c7; border-bottom: 1px solid #f59e0b; color: #92400e; padding: 0.5rem 1.5rem; font-size: 0.875rem; display: none; }
+
+/* Client-specific CSS (see src/shared/base.css for rules shared with the manager). */
+
+    :root {
+      --bg: #f4f6f9; --surface: #ffffff; --border: #e2e8f0;
+      --primary: #4f46e5; --primary-hover: #4338ca;
+      --danger: #ef4444; --muted: #6b7280; --text: #1f2937; --radius: 8px;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    header { background: var(--primary); color: white; padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+    header h1 { font-size: 1.1rem; font-weight: 600; }
+    .header-meta { font-size: 0.8125rem; opacity: 0.85; }
+    .container { max-width: 720px; margin: 0 auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
+    .card-title { font-size: 0.75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; }
+    .form-group { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.75rem; }
+    input[type="text"], textarea { padding: 0.45rem 0.75rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.875rem; width: 100%; }
+    input:focus, textarea:focus { outline: none; border-color: var(--primary); }
+    .question-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; margin-bottom: 0.75rem; }
+    .question-text { font-weight: 600; margin-bottom: 0.75rem; }
+    .question-num { color: var(--primary); font-size: 0.875rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .radio-group, .choice-group { display: flex; flex-direction: column; gap: 0.5rem; }
+    .radio-label, .choice-label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem; }
+    .help-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--radius); padding: 1rem; font-size: 0.875rem; line-height: 1.6; display: none; }
+    .help-box h3 { margin-bottom: 0.5rem; color: var(--primary); }
+    .help-box ul { padding-left: 1.25rem; }
+    .required-label::after { content: " *"; color: var(--danger); }
+    /* Start-Ansicht (nur gehosteter Client, kein eingebettetes Survey):
+       standardmäßig verborgen, damit der per HTML exportierte Client
+       (eingebettetes Survey) unverändert direkt in der Fragebogen-Ansicht
+       startet; client.js blendet #start-view/#survey-view je nach
+       SURVEY === null um. #survey-view übernimmt hier das ehemals vom
+       Flex-Container (.container) direkt bereitgestellte vertikale Gap
+       zwischen seinen Kind-Karten, da es nun selbst ein Flex-Item ist. */
+    #start-view { display: none; flex-direction: column; gap: 1.25rem; }
+    #survey-view { display: flex; flex-direction: column; gap: 1.25rem; }
+    .drop-zone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 2.5rem 1.5rem; text-align: center; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 0.5rem; transition: border-color 0.15s, background-color 0.15s; }
+    .drop-zone-active { border-color: var(--primary); background: #eef2ff; }
+
+  </style>
+</head>
+<body>
+<div id="ls-banner">⚠️ localStorage ist nicht verfügbar. Antworten werden nicht gespeichert.</div>
+<header>
+  <div>
+    <h1 id="survey-title"></h1>
+    <div class="header-meta" id="survey-frist"></div>
+  </div>
+  <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+    <button class="btn" style="background:rgba(255,255,255,0.15); border-color:rgba(255,255,255,0.3); color:white;" id="btn-help">?</button>
+  </div>
+</header>
+
+<div class="container">
+  <div class="help-box" id="help-box">
+    <h3>Umfrage-Client — Hilfe</h3>
+    <p><strong>Was ist das?</strong> Dieses Dokument ist ein digitaler Fragebogen. Sie können ihn direkt in Ihrem Browser ausfüllen.</p>
+    <p style="margin-top:0.5rem;"><strong>Pflichtfelder</strong> sind mit <span style="color:var(--danger);">*</span> markiert und müssen ausgefüllt sein, bevor Sie exportieren können.</p>
+    <p style="margin-top:0.5rem;"><strong>Wie funktioniert es?</strong></p>
+    <ul>
+      <li>Füllen Sie das Pflichtfeld (<span id="help-befragter-label">Hochschule</span>) aus.</li>
+      <li>Beantworten Sie alle Fragen.</li>
+      <li>Klicken Sie auf <strong>Antworten exportieren (YAML)</strong> — eine YAML-Datei wird heruntergeladen.</li>
+      <li>Senden Sie diese YAML-Datei zurück an die Person, die Ihnen den Fragebogen geschickt hat.</li>
+    </ul>
+    <p style="margin-top:0.5rem;"><strong>Ihre Antworten</strong> werden automatisch in Ihrem Browser gespeichert (localStorage), solange Sie den Fragebogen nicht schließen. Sie können eine zuvor exportierte (auch teilweise ausgefüllte) YAML-Datei wieder importieren, um an ihr weiterzuarbeiten — das Versionsfeld wird dabei automatisch um eins erhöht, ist aber nur ein Indiz und kein Echtheitsnachweis.</p>
+  </div>
+
+  <!-- Start-Ansicht: nur beim zentral gehosteten Client (kein eingebettetes
+       Survey) sichtbar — siehe client.js, wo dies anhand von SURVEY === null
+       entschieden wird. Beim per HTML exportierten Client bleibt dieser
+       Block per Default (s. client.css) verborgen, sodass unverändert
+       direkt die Fragebogen-Ansicht erscheint. -->
+  <div id="start-view">
+    <div class="card">
+      <div class="card-title">Umfrage-Client</div>
+      <p>Dieser zentrale Umfrage-Client hat aktuell noch keine Umfrage geladen. Importieren Sie eine <strong>.yaml</strong>-Datei, die Sie von der Umfrage-Ersteller:in oder einer/einem Kolleg:in erhalten haben.</p>
+      <p style="margin-top:0.5rem;">Nach dem Import erscheint der Fragebogen und Sie können ihn ausfüllen. Ihre Antworten werden anschließend in diesem Browser gespeichert; die YAML-Datei können Sie danach wieder exportieren und weitergeben.</p>
+    </div>
+    <div class="card">
+      <div id="drop-zone" class="drop-zone">
+        <p>YAML-Datei hierher ziehen</p>
+        <p>— oder —</p>
+        <label class="btn btn-primary" style="cursor:pointer;">
+          Datei auswählen
+          <input type="file" accept=".yaml,.yml" style="display:none;" id="start-import-file">
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div id="survey-view">
+    <div class="card">
+      <div class="card-title">Allgemeine Angaben</div>
+      <div class="form-group">
+        <label id="label-befragte" for="meta-befragte" class="required-label">Hochschule</label>
+        <input type="text" id="meta-befragte" placeholder="Hochschule">
+      </div>
+      <div class="form-group">
+        <label for="meta-version">Version (optional, wird beim Import automatisch erhöht)</label>
+        <input type="text" id="meta-version" placeholder="0">
+      </div>
+    </div>
+
+    <div id="questions-container"></div>
+
+    <div class="card">
+      <div class="card-title">Notizen &amp; Anmerkungen</div>
+      <textarea id="meta-notizen" rows="4" placeholder="Freitext für allgemeine Anmerkungen…" style="resize:vertical;"></textarea>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Aktionen</div>
+      <div class="btn-bar">
+        <button class="btn btn-primary" id="btn-export">Antworten exportieren (YAML)</button>
+        <label class="btn" style="cursor:pointer;">
+          Antworten importieren
+          <input type="file" accept=".yaml,.yml" style="display:none;" id="import-answers">
+        </label>
+        <button class="btn btn-danger" id="btn-clear-survey">Daten dieser Umfrage löschen</button>
+        <button class="btn btn-danger" id="btn-clear-all">Alle Client-Daten löschen</button>
+        <button class="btn" id="btn-load-other" style="display:none;">Andere Umfrage laden</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script id="jsyaml-src">/*! js-yaml 4.1.0 https://github.com/nodeca/js-yaml @license MIT */
+!function(e,t){"object"==typeof exports&&"undefined"!=typeof module?t(exports):"function"==typeof define&&define.amd?define(["exports"],t):t((e="undefined"!=typeof globalThis?globalThis:e||self).jsyaml={})}(this,(function(e){"use strict";function t(e){return null==e}var n={isNothing:t,isObject:function(e){return"object"==typeof e&&null!==e},toArray:function(e){return Array.isArray(e)?e:t(e)?[]:[e]},repeat:function(e,t){var n,i="";for(n=0;n<t;n+=1)i+=e;return i},isNegativeZero:function(e){return 0===e&&Number.NEGATIVE_INFINITY===1/e},extend:function(e,t){var n,i,r,o;if(t)for(n=0,i=(o=Object.keys(t)).length;n<i;n+=1)e[r=o[n]]=t[r];return e}};function i(e,t){var n="",i=e.reason||"(unknown reason)";return e.mark?(e.mark.name&&(n+='in "'+e.mark.name+'" '),n+="("+(e.mark.line+1)+":"+(e.mark.column+1)+")",!t&&e.mark.snippet&&(n+="\n\n"+e.mark.snippet),i+" "+n):i}function r(e,t){Error.call(this),this.name="YAMLException",this.reason=e,this.mark=t,this.message=i(this,!1),Error.captureStackTrace?Error.captureStackTrace(this,this.constructor):this.stack=(new Error).stack||""}r.prototype=Object.create(Error.prototype),r.prototype.constructor=r,r.prototype.toString=function(e){return this.name+": "+i(this,e)};var o=r;function a(e,t,n,i,r){var o="",a="",l=Math.floor(r/2)-1;return i-t>l&&(t=i-l+(o=" ... ").length),n-i>l&&(n=i+l-(a=" ...").length),{str:o+e.slice(t,n).replace(/\t/g,"→")+a,pos:i-t+o.length}}function l(e,t){return n.repeat(" ",t-e.length)+e}var c=function(e,t){if(t=Object.create(t||null),!e.buffer)return null;t.maxLength||(t.maxLength=79),"number"!=typeof t.indent&&(t.indent=1),"number"!=typeof t.linesBefore&&(t.linesBefore=3),"number"!=typeof t.linesAfter&&(t.linesAfter=2);for(var i,r=/\r?\n|\r|\0/g,o=[0],c=[],s=-1;i=r.exec(e.buffer);)c.push(i.index),o.push(i.index+i[0].length),e.position<=i.index&&s<0&&(s=o.length-2);s<0&&(s=o.length-1);var u,p,f="",d=Math.min(e.line+t.linesAfter,c.length).toString().length,h=t.maxLength-(t.indent+d+3);for(u=1;u<=t.linesBefore&&!(s-u<0);u++)p=a(e.buffer,o[s-u],c[s-u],e.position-(o[s]-o[s-u]),h),f=n.repeat(" ",t.indent)+l((e.line-u+1).toString(),d)+" | "+p.str+"\n"+f;for(p=a(e.buffer,o[s],c[s],e.position,h),f+=n.repeat(" ",t.indent)+l((e.line+1).toString(),d)+" | "+p.str+"\n",f+=n.repeat("-",t.indent+d+3+p.pos)+"^\n",u=1;u<=t.linesAfter&&!(s+u>=c.length);u++)p=a(e.buffer,o[s+u],c[s+u],e.position-(o[s]-o[s+u]),h),f+=n.repeat(" ",t.indent)+l((e.line+u+1).toString(),d)+" | "+p.str+"\n";return f.replace(/\n$/,"")},s=["kind","multi","resolve","construct","instanceOf","predicate","represent","representName","defaultStyle","styleAliases"],u=["scalar","sequence","mapping"];var p=function(e,t){if(t=t||{},Object.keys(t).forEach((function(t){if(-1===s.indexOf(t))throw new o('Unknown option "'+t+'" is met in definition of "'+e+'" YAML type.')})),this.options=t,this.tag=e,this.kind=t.kind||null,this.resolve=t.resolve||function(){return!0},this.construct=t.construct||function(e){return e},this.instanceOf=t.instanceOf||null,this.predicate=t.predicate||null,this.represent=t.represent||null,this.representName=t.representName||null,this.defaultStyle=t.defaultStyle||null,this.multi=t.multi||!1,this.styleAliases=function(e){var t={};return null!==e&&Object.keys(e).forEach((function(n){e[n].forEach((function(e){t[String(e)]=n}))})),t}(t.styleAliases||null),-1===u.indexOf(this.kind))throw new o('Unknown kind "'+this.kind+'" is specified for "'+e+'" YAML type.')};function f(e,t){var n=[];return e[t].forEach((function(e){var t=n.length;n.forEach((function(n,i){n.tag===e.tag&&n.kind===e.kind&&n.multi===e.multi&&(t=i)})),n[t]=e})),n}function d(e){return this.extend(e)}d.prototype.extend=function(e){var t=[],n=[];if(e instanceof p)n.push(e);else if(Array.isArray(e))n=n.concat(e);else{if(!e||!Array.isArray(e.implicit)&&!Array.isArray(e.explicit))throw new o("Schema.extend argument should be a Type, [ Type ], or a schema definition ({ implicit: [...], explicit: [...] })");e.implicit&&(t=t.concat(e.implicit)),e.explicit&&(n=n.concat(e.explicit))}t.forEach((function(e){if(!(e instanceof p))throw new o("Specified list of YAML types (or a single Type object) contains a non-Type object.");if(e.loadKind&&"scalar"!==e.loadKind)throw new o("There is a non-scalar type in the implicit list of a schema. Implicit resolving of such types is not supported.");if(e.multi)throw new o("There is a multi type in the implicit list of a schema. Multi tags can only be listed as explicit.")})),n.forEach((function(e){if(!(e instanceof p))throw new o("Specified list of YAML types (or a single Type object) contains a non-Type object.")}));var i=Object.create(d.prototype);return i.implicit=(this.implicit||[]).concat(t),i.explicit=(this.explicit||[]).concat(n),i.compiledImplicit=f(i,"implicit"),i.compiledExplicit=f(i,"explicit"),i.compiledTypeMap=function(){var e,t,n={scalar:{},sequence:{},mapping:{},fallback:{},multi:{scalar:[],sequence:[],mapping:[],fallback:[]}};function i(e){e.multi?(n.multi[e.kind].push(e),n.multi.fallback.push(e)):n[e.kind][e.tag]=n.fallback[e.tag]=e}for(e=0,t=arguments.length;e<t;e+=1)arguments[e].forEach(i);return n}(i.compiledImplicit,i.compiledExplicit),i};var h=d,g=new p("tag:yaml.org,2002:str",{kind:"scalar",construct:function(e){return null!==e?e:""}}),m=new p("tag:yaml.org,2002:seq",{kind:"sequence",construct:function(e){return null!==e?e:[]}}),y=new p("tag:yaml.org,2002:map",{kind:"mapping",construct:function(e){return null!==e?e:{}}}),b=new h({explicit:[g,m,y]});var A=new p("tag:yaml.org,2002:null",{kind:"scalar",resolve:function(e){if(null===e)return!0;var t=e.length;return 1===t&&"~"===e||4===t&&("null"===e||"Null"===e||"NULL"===e)},construct:function(){return null},predicate:function(e){return null===e},represent:{canonical:function(){return"~"},lowercase:function(){return"null"},uppercase:function(){return"NULL"},camelcase:function(){return"Null"},empty:function(){return""}},defaultStyle:"lowercase"});var v=new p("tag:yaml.org,2002:bool",{kind:"scalar",resolve:function(e){if(null===e)return!1;var t=e.length;return 4===t&&("true"===e||"True"===e||"TRUE"===e)||5===t&&("false"===e||"False"===e||"FALSE"===e)},construct:function(e){return"true"===e||"True"===e||"TRUE"===e},predicate:function(e){return"[object Boolean]"===Object.prototype.toString.call(e)},represent:{lowercase:function(e){return e?"true":"false"},uppercase:function(e){return e?"TRUE":"FALSE"},camelcase:function(e){return e?"True":"False"}},defaultStyle:"lowercase"});function w(e){return 48<=e&&e<=55}function k(e){return 48<=e&&e<=57}var C=new p("tag:yaml.org,2002:int",{kind:"scalar",resolve:function(e){if(null===e)return!1;var t,n,i=e.length,r=0,o=!1;if(!i)return!1;if("-"!==(t=e[r])&&"+"!==t||(t=e[++r]),"0"===t){if(r+1===i)return!0;if("b"===(t=e[++r])){for(r++;r<i;r++)if("_"!==(t=e[r])){if("0"!==t&&"1"!==t)return!1;o=!0}return o&&"_"!==t}if("x"===t){for(r++;r<i;r++)if("_"!==(t=e[r])){if(!(48<=(n=e.charCodeAt(r))&&n<=57||65<=n&&n<=70||97<=n&&n<=102))return!1;o=!0}return o&&"_"!==t}if("o"===t){for(r++;r<i;r++)if("_"!==(t=e[r])){if(!w(e.charCodeAt(r)))return!1;o=!0}return o&&"_"!==t}}if("_"===t)return!1;for(;r<i;r++)if("_"!==(t=e[r])){if(!k(e.charCodeAt(r)))return!1;o=!0}return!(!o||"_"===t)},construct:function(e){var t,n=e,i=1;if(-1!==n.indexOf("_")&&(n=n.replace(/_/g,"")),"-"!==(t=n[0])&&"+"!==t||("-"===t&&(i=-1),t=(n=n.slice(1))[0]),"0"===n)return 0;if("0"===t){if("b"===n[1])return i*parseInt(n.slice(2),2);if("x"===n[1])return i*parseInt(n.slice(2),16);if("o"===n[1])return i*parseInt(n.slice(2),8)}return i*parseInt(n,10)},predicate:function(e){return"[object Number]"===Object.prototype.toString.call(e)&&e%1==0&&!n.isNegativeZero(e)},represent:{binary:function(e){return e>=0?"0b"+e.toString(2):"-0b"+e.toString(2).slice(1)},octal:function(e){return e>=0?"0o"+e.toString(8):"-0o"+e.toString(8).slice(1)},decimal:function(e){return e.toString(10)},hexadecimal:function(e){return e>=0?"0x"+e.toString(16).toUpperCase():"-0x"+e.toString(16).toUpperCase().slice(1)}},defaultStyle:"decimal",styleAliases:{binary:[2,"bin"],octal:[8,"oct"],decimal:[10,"dec"],hexadecimal:[16,"hex"]}}),x=new RegExp("^(?:[-+]?(?:[0-9][0-9_]*)(?:\\.[0-9_]*)?(?:[eE][-+]?[0-9]+)?|\\.[0-9_]+(?:[eE][-+]?[0-9]+)?|[-+]?\\.(?:inf|Inf|INF)|\\.(?:nan|NaN|NAN))$");var I=/^[-+]?[0-9]+e/;var S=new p("tag:yaml.org,2002:float",{kind:"scalar",resolve:function(e){return null!==e&&!(!x.test(e)||"_"===e[e.length-1])},construct:function(e){var t,n;return n="-"===(t=e.replace(/_/g,"").toLowerCase())[0]?-1:1,"+-".indexOf(t[0])>=0&&(t=t.slice(1)),".inf"===t?1===n?Number.POSITIVE_INFINITY:Number.NEGATIVE_INFINITY:".nan"===t?NaN:n*parseFloat(t,10)},predicate:function(e){return"[object Number]"===Object.prototype.toString.call(e)&&(e%1!=0||n.isNegativeZero(e))},represent:function(e,t){var i;if(isNaN(e))switch(t){case"lowercase":return".nan";case"uppercase":return".NAN";case"camelcase":return".NaN"}else if(Number.POSITIVE_INFINITY===e)switch(t){case"lowercase":return".inf";case"uppercase":return".INF";case"camelcase":return".Inf"}else if(Number.NEGATIVE_INFINITY===e)switch(t){case"lowercase":return"-.inf";case"uppercase":return"-.INF";case"camelcase":return"-.Inf"}else if(n.isNegativeZero(e))return"-0.0";return i=e.toString(10),I.test(i)?i.replace("e",".e"):i},defaultStyle:"lowercase"}),O=b.extend({implicit:[A,v,C,S]}),j=O,T=new RegExp("^([0-9][0-9][0-9][0-9])-([0-9][0-9])-([0-9][0-9])$"),N=new RegExp("^([0-9][0-9][0-9][0-9])-([0-9][0-9]?)-([0-9][0-9]?)(?:[Tt]|[ \\t]+)([0-9][0-9]?):([0-9][0-9]):([0-9][0-9])(?:\\.([0-9]*))?(?:[ \\t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?$");var F=new p("tag:yaml.org,2002:timestamp",{kind:"scalar",resolve:function(e){return null!==e&&(null!==T.exec(e)||null!==N.exec(e))},construct:function(e){var t,n,i,r,o,a,l,c,s=0,u=null;if(null===(t=T.exec(e))&&(t=N.exec(e)),null===t)throw new Error("Date resolve error");if(n=+t[1],i=+t[2]-1,r=+t[3],!t[4])return new Date(Date.UTC(n,i,r));if(o=+t[4],a=+t[5],l=+t[6],t[7]){for(s=t[7].slice(0,3);s.length<3;)s+="0";s=+s}return t[9]&&(u=6e4*(60*+t[10]+ +(t[11]||0)),"-"===t[9]&&(u=-u)),c=new Date(Date.UTC(n,i,r,o,a,l,s)),u&&c.setTime(c.getTime()-u),c},instanceOf:Date,represent:function(e){return e.toISOString()}});var E=new p("tag:yaml.org,2002:merge",{kind:"scalar",resolve:function(e){return"<<"===e||null===e}}),M="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r";var L=new p("tag:yaml.org,2002:binary",{kind:"scalar",resolve:function(e){if(null===e)return!1;var t,n,i=0,r=e.length,o=M;for(n=0;n<r;n++)if(!((t=o.indexOf(e.charAt(n)))>64)){if(t<0)return!1;i+=6}return i%8==0},construct:function(e){var t,n,i=e.replace(/[\r\n=]/g,""),r=i.length,o=M,a=0,l=[];for(t=0;t<r;t++)t%4==0&&t&&(l.push(a>>16&255),l.push(a>>8&255),l.push(255&a)),a=a<<6|o.indexOf(i.charAt(t));return 0===(n=r%4*6)?(l.push(a>>16&255),l.push(a>>8&255),l.push(255&a)):18===n?(l.push(a>>10&255),l.push(a>>2&255)):12===n&&l.push(a>>4&255),new Uint8Array(l)},predicate:function(e){return"[object Uint8Array]"===Object.prototype.toString.call(e)},represent:function(e){var t,n,i="",r=0,o=e.length,a=M;for(t=0;t<o;t++)t%3==0&&t&&(i+=a[r>>18&63],i+=a[r>>12&63],i+=a[r>>6&63],i+=a[63&r]),r=(r<<8)+e[t];return 0===(n=o%3)?(i+=a[r>>18&63],i+=a[r>>12&63],i+=a[r>>6&63],i+=a[63&r]):2===n?(i+=a[r>>10&63],i+=a[r>>4&63],i+=a[r<<2&63],i+=a[64]):1===n&&(i+=a[r>>2&63],i+=a[r<<4&63],i+=a[64],i+=a[64]),i}}),_=Object.prototype.hasOwnProperty,D=Object.prototype.toString;var U=new p("tag:yaml.org,2002:omap",{kind:"sequence",resolve:function(e){if(null===e)return!0;var t,n,i,r,o,a=[],l=e;for(t=0,n=l.length;t<n;t+=1){if(i=l[t],o=!1,"[object Object]"!==D.call(i))return!1;for(r in i)if(_.call(i,r)){if(o)return!1;o=!0}if(!o)return!1;if(-1!==a.indexOf(r))return!1;a.push(r)}return!0},construct:function(e){return null!==e?e:[]}}),q=Object.prototype.toString;var Y=new p("tag:yaml.org,2002:pairs",{kind:"sequence",resolve:function(e){if(null===e)return!0;var t,n,i,r,o,a=e;for(o=new Array(a.length),t=0,n=a.length;t<n;t+=1){if(i=a[t],"[object Object]"!==q.call(i))return!1;if(1!==(r=Object.keys(i)).length)return!1;o[t]=[r[0],i[r[0]]]}return!0},construct:function(e){if(null===e)return[];var t,n,i,r,o,a=e;for(o=new Array(a.length),t=0,n=a.length;t<n;t+=1)i=a[t],r=Object.keys(i),o[t]=[r[0],i[r[0]]];return o}}),R=Object.prototype.hasOwnProperty;var B=new p("tag:yaml.org,2002:set",{kind:"mapping",resolve:function(e){if(null===e)return!0;var t,n=e;for(t in n)if(R.call(n,t)&&null!==n[t])return!1;return!0},construct:function(e){return null!==e?e:{}}}),K=j.extend({implicit:[F,E],explicit:[L,U,Y,B]}),P=Object.prototype.hasOwnProperty,W=/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x84\x86-\x9F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/,H=/[\x85\u2028\u2029]/,$=/[,\[\]\{\}]/,G=/^(?:!|!!|![a-z\-]+!)$/i,V=/^(?:!|[^,\[\]\{\}])(?:%[0-9a-f]{2}|[0-9a-z\-#;\/\?:@&=\+\$,_\.!~\*'\(\)\[\]])*$/i;function Z(e){return Object.prototype.toString.call(e)}function J(e){return 10===e||13===e}function Q(e){return 9===e||32===e}function z(e){return 9===e||32===e||10===e||13===e}function X(e){return 44===e||91===e||93===e||123===e||125===e}function ee(e){var t;return 48<=e&&e<=57?e-48:97<=(t=32|e)&&t<=102?t-97+10:-1}function te(e){return 48===e?"\0":97===e?"":98===e?"\b":116===e||9===e?"\t":110===e?"\n":118===e?"\v":102===e?"\f":114===e?"\r":101===e?"":32===e?" ":34===e?'"':47===e?"/":92===e?"\\":78===e?"":95===e?" ":76===e?"\u2028":80===e?"\u2029":""}function ne(e){return e<=65535?String.fromCharCode(e):String.fromCharCode(55296+(e-65536>>10),56320+(e-65536&1023))}for(var ie=new Array(256),re=new Array(256),oe=0;oe<256;oe++)ie[oe]=te(oe)?1:0,re[oe]=te(oe);function ae(e,t){this.input=e,this.filename=t.filename||null,this.schema=t.schema||K,this.onWarning=t.onWarning||null,this.legacy=t.legacy||!1,this.json=t.json||!1,this.listener=t.listener||null,this.implicitTypes=this.schema.compiledImplicit,this.typeMap=this.schema.compiledTypeMap,this.length=e.length,this.position=0,this.line=0,this.lineStart=0,this.lineIndent=0,this.firstTabInLine=-1,this.documents=[]}function le(e,t){var n={name:e.filename,buffer:e.input.slice(0,-1),position:e.position,line:e.line,column:e.position-e.lineStart};return n.snippet=c(n),new o(t,n)}function ce(e,t){throw le(e,t)}function se(e,t){e.onWarning&&e.onWarning.call(null,le(e,t))}var ue={YAML:function(e,t,n){var i,r,o;null!==e.version&&ce(e,"duplication of %YAML directive"),1!==n.length&&ce(e,"YAML directive accepts exactly one argument"),null===(i=/^([0-9]+)\.([0-9]+)$/.exec(n[0]))&&ce(e,"ill-formed argument of the YAML directive"),r=parseInt(i[1],10),o=parseInt(i[2],10),1!==r&&ce(e,"unacceptable YAML version of the document"),e.version=n[0],e.checkLineBreaks=o<2,1!==o&&2!==o&&se(e,"unsupported YAML version of the document")},TAG:function(e,t,n){var i,r;2!==n.length&&ce(e,"TAG directive accepts exactly two arguments"),i=n[0],r=n[1],G.test(i)||ce(e,"ill-formed tag handle (first argument) of the TAG directive"),P.call(e.tagMap,i)&&ce(e,'there is a previously declared suffix for "'+i+'" tag handle'),V.test(r)||ce(e,"ill-formed tag prefix (second argument) of the TAG directive");try{r=decodeURIComponent(r)}catch(t){ce(e,"tag prefix is malformed: "+r)}e.tagMap[i]=r}};function pe(e,t,n,i){var r,o,a,l;if(t<n){if(l=e.input.slice(t,n),i)for(r=0,o=l.length;r<o;r+=1)9===(a=l.charCodeAt(r))||32<=a&&a<=1114111||ce(e,"expected valid JSON character");else W.test(l)&&ce(e,"the stream contains non-printable characters");e.result+=l}}function fe(e,t,i,r){var o,a,l,c;for(n.isObject(i)||ce(e,"cannot merge mappings; the provided source object is unacceptable"),l=0,c=(o=Object.keys(i)).length;l<c;l+=1)a=o[l],P.call(t,a)||(t[a]=i[a],r[a]=!0)}function de(e,t,n,i,r,o,a,l,c){var s,u;if(Array.isArray(r))for(s=0,u=(r=Array.prototype.slice.call(r)).length;s<u;s+=1)Array.isArray(r[s])&&ce(e,"nested arrays are not supported inside keys"),"object"==typeof r&&"[object Object]"===Z(r[s])&&(r[s]="[object Object]");if("object"==typeof r&&"[object Object]"===Z(r)&&(r="[object Object]"),r=String(r),null===t&&(t={}),"tag:yaml.org,2002:merge"===i)if(Array.isArray(o))for(s=0,u=o.length;s<u;s+=1)fe(e,t,o[s],n);else fe(e,t,o,n);else e.json||P.call(n,r)||!P.call(t,r)||(e.line=a||e.line,e.lineStart=l||e.lineStart,e.position=c||e.position,ce(e,"duplicated mapping key")),"__proto__"===r?Object.defineProperty(t,r,{configurable:!0,enumerable:!0,writable:!0,value:o}):t[r]=o,delete n[r];return t}function he(e){var t;10===(t=e.input.charCodeAt(e.position))?e.position++:13===t?(e.position++,10===e.input.charCodeAt(e.position)&&e.position++):ce(e,"a line break is expected"),e.line+=1,e.lineStart=e.position,e.firstTabInLine=-1}function ge(e,t,n){for(var i=0,r=e.input.charCodeAt(e.position);0!==r;){for(;Q(r);)9===r&&-1===e.firstTabInLine&&(e.firstTabInLine=e.position),r=e.input.charCodeAt(++e.position);if(t&&35===r)do{r=e.input.charCodeAt(++e.position)}while(10!==r&&13!==r&&0!==r);if(!J(r))break;for(he(e),r=e.input.charCodeAt(e.position),i++,e.lineIndent=0;32===r;)e.lineIndent++,r=e.input.charCodeAt(++e.position)}return-1!==n&&0!==i&&e.lineIndent<n&&se(e,"deficient indentation"),i}function me(e){var t,n=e.position;return!(45!==(t=e.input.charCodeAt(n))&&46!==t||t!==e.input.charCodeAt(n+1)||t!==e.input.charCodeAt(n+2)||(n+=3,0!==(t=e.input.charCodeAt(n))&&!z(t)))}function ye(e,t){1===t?e.result+=" ":t>1&&(e.result+=n.repeat("\n",t-1))}function be(e,t){var n,i,r=e.tag,o=e.anchor,a=[],l=!1;if(-1!==e.firstTabInLine)return!1;for(null!==e.anchor&&(e.anchorMap[e.anchor]=a),i=e.input.charCodeAt(e.position);0!==i&&(-1!==e.firstTabInLine&&(e.position=e.firstTabInLine,ce(e,"tab characters must not be used in indentation")),45===i)&&z(e.input.charCodeAt(e.position+1));)if(l=!0,e.position++,ge(e,!0,-1)&&e.lineIndent<=t)a.push(null),i=e.input.charCodeAt(e.position);else if(n=e.line,we(e,t,3,!1,!0),a.push(e.result),ge(e,!0,-1),i=e.input.charCodeAt(e.position),(e.line===n||e.lineIndent>t)&&0!==i)ce(e,"bad indentation of a sequence entry");else if(e.lineIndent<t)break;return!!l&&(e.tag=r,e.anchor=o,e.kind="sequence",e.result=a,!0)}function Ae(e){var t,n,i,r,o=!1,a=!1;if(33!==(r=e.input.charCodeAt(e.position)))return!1;if(null!==e.tag&&ce(e,"duplication of a tag property"),60===(r=e.input.charCodeAt(++e.position))?(o=!0,r=e.input.charCodeAt(++e.position)):33===r?(a=!0,n="!!",r=e.input.charCodeAt(++e.position)):n="!",t=e.position,o){do{r=e.input.charCodeAt(++e.position)}while(0!==r&&62!==r);e.position<e.length?(i=e.input.slice(t,e.position),r=e.input.charCodeAt(++e.position)):ce(e,"unexpected end of the stream within a verbatim tag")}else{for(;0!==r&&!z(r);)33===r&&(a?ce(e,"tag suffix cannot contain exclamation marks"):(n=e.input.slice(t-1,e.position+1),G.test(n)||ce(e,"named tag handle cannot contain such characters"),a=!0,t=e.position+1)),r=e.input.charCodeAt(++e.position);i=e.input.slice(t,e.position),$.test(i)&&ce(e,"tag suffix cannot contain flow indicator characters")}i&&!V.test(i)&&ce(e,"tag name cannot contain such characters: "+i);try{i=decodeURIComponent(i)}catch(t){ce(e,"tag name is malformed: "+i)}return o?e.tag=i:P.call(e.tagMap,n)?e.tag=e.tagMap[n]+i:"!"===n?e.tag="!"+i:"!!"===n?e.tag="tag:yaml.org,2002:"+i:ce(e,'undeclared tag handle "'+n+'"'),!0}function ve(e){var t,n;if(38!==(n=e.input.charCodeAt(e.position)))return!1;for(null!==e.anchor&&ce(e,"duplication of an anchor property"),n=e.input.charCodeAt(++e.position),t=e.position;0!==n&&!z(n)&&!X(n);)n=e.input.charCodeAt(++e.position);return e.position===t&&ce(e,"name of an anchor node must contain at least one character"),e.anchor=e.input.slice(t,e.position),!0}function we(e,t,i,r,o){var a,l,c,s,u,p,f,d,h,g=1,m=!1,y=!1;if(null!==e.listener&&e.listener("open",e),e.tag=null,e.anchor=null,e.kind=null,e.result=null,a=l=c=4===i||3===i,r&&ge(e,!0,-1)&&(m=!0,e.lineIndent>t?g=1:e.lineIndent===t?g=0:e.lineIndent<t&&(g=-1)),1===g)for(;Ae(e)||ve(e);)ge(e,!0,-1)?(m=!0,c=a,e.lineIndent>t?g=1:e.lineIndent===t?g=0:e.lineIndent<t&&(g=-1)):c=!1;if(c&&(c=m||o),1!==g&&4!==i||(d=1===i||2===i?t:t+1,h=e.position-e.lineStart,1===g?c&&(be(e,h)||function(e,t,n){var i,r,o,a,l,c,s,u=e.tag,p=e.anchor,f={},d=Object.create(null),h=null,g=null,m=null,y=!1,b=!1;if(-1!==e.firstTabInLine)return!1;for(null!==e.anchor&&(e.anchorMap[e.anchor]=f),s=e.input.charCodeAt(e.position);0!==s;){if(y||-1===e.firstTabInLine||(e.position=e.firstTabInLine,ce(e,"tab characters must not be used in indentation")),i=e.input.charCodeAt(e.position+1),o=e.line,63!==s&&58!==s||!z(i)){if(a=e.line,l=e.lineStart,c=e.position,!we(e,n,2,!1,!0))break;if(e.line===o){for(s=e.input.charCodeAt(e.position);Q(s);)s=e.input.charCodeAt(++e.position);if(58===s)z(s=e.input.charCodeAt(++e.position))||ce(e,"a whitespace character is expected after the key-value separator within a block mapping"),y&&(de(e,f,d,h,g,null,a,l,c),h=g=m=null),b=!0,y=!1,r=!1,h=e.tag,g=e.result;else{if(!b)return e.tag=u,e.anchor=p,!0;ce(e,"can not read an implicit mapping pair; a colon is missed")}}else{if(!b)return e.tag=u,e.anchor=p,!0;ce(e,"can not read a block mapping entry; a multiline key may not be an implicit key")}}else 63===s?(y&&(de(e,f,d,h,g,null,a,l,c),h=g=m=null),b=!0,y=!0,r=!0):y?(y=!1,r=!0):ce(e,"incomplete explicit mapping pair; a key node is missed; or followed by a non-tabulated empty line"),e.position+=1,s=i;if((e.line===o||e.lineIndent>t)&&(y&&(a=e.line,l=e.lineStart,c=e.position),we(e,t,4,!0,r)&&(y?g=e.result:m=e.result),y||(de(e,f,d,h,g,m,a,l,c),h=g=m=null),ge(e,!0,-1),s=e.input.charCodeAt(e.position)),(e.line===o||e.lineIndent>t)&&0!==s)ce(e,"bad indentation of a mapping entry");else if(e.lineIndent<t)break}return y&&de(e,f,d,h,g,null,a,l,c),b&&(e.tag=u,e.anchor=p,e.kind="mapping",e.result=f),b}(e,h,d))||function(e,t){var n,i,r,o,a,l,c,s,u,p,f,d,h=!0,g=e.tag,m=e.anchor,y=Object.create(null);if(91===(d=e.input.charCodeAt(e.position)))a=93,s=!1,o=[];else{if(123!==d)return!1;a=125,s=!0,o={}}for(null!==e.anchor&&(e.anchorMap[e.anchor]=o),d=e.input.charCodeAt(++e.position);0!==d;){if(ge(e,!0,t),(d=e.input.charCodeAt(e.position))===a)return e.position++,e.tag=g,e.anchor=m,e.kind=s?"mapping":"sequence",e.result=o,!0;h?44===d&&ce(e,"expected the node content, but found ','"):ce(e,"missed comma between flow collection entries"),f=null,l=c=!1,63===d&&z(e.input.charCodeAt(e.position+1))&&(l=c=!0,e.position++,ge(e,!0,t)),n=e.line,i=e.lineStart,r=e.position,we(e,t,1,!1,!0),p=e.tag,u=e.result,ge(e,!0,t),d=e.input.charCodeAt(e.position),!c&&e.line!==n||58!==d||(l=!0,d=e.input.charCodeAt(++e.position),ge(e,!0,t),we(e,t,1,!1,!0),f=e.result),s?de(e,o,y,p,u,f,n,i,r):l?o.push(de(e,null,y,p,u,f,n,i,r)):o.push(u),ge(e,!0,t),44===(d=e.input.charCodeAt(e.position))?(h=!0,d=e.input.charCodeAt(++e.position)):h=!1}ce(e,"unexpected end of the stream within a flow collection")}(e,d)?y=!0:(l&&function(e,t){var i,r,o,a,l,c=1,s=!1,u=!1,p=t,f=0,d=!1;if(124===(a=e.input.charCodeAt(e.position)))r=!1;else{if(62!==a)return!1;r=!0}for(e.kind="scalar",e.result="";0!==a;)if(43===(a=e.input.charCodeAt(++e.position))||45===a)1===c?c=43===a?3:2:ce(e,"repeat of a chomping mode identifier");else{if(!((o=48<=(l=a)&&l<=57?l-48:-1)>=0))break;0===o?ce(e,"bad explicit indentation width of a block scalar; it cannot be less than one"):u?ce(e,"repeat of an indentation width identifier"):(p=t+o-1,u=!0)}if(Q(a)){do{a=e.input.charCodeAt(++e.position)}while(Q(a));if(35===a)do{a=e.input.charCodeAt(++e.position)}while(!J(a)&&0!==a)}for(;0!==a;){for(he(e),e.lineIndent=0,a=e.input.charCodeAt(e.position);(!u||e.lineIndent<p)&&32===a;)e.lineIndent++,a=e.input.charCodeAt(++e.position);if(!u&&e.lineIndent>p&&(p=e.lineIndent),J(a))f++;else{if(e.lineIndent<p){3===c?e.result+=n.repeat("\n",s?1+f:f):1===c&&s&&(e.result+="\n");break}for(r?Q(a)?(d=!0,e.result+=n.repeat("\n",s?1+f:f)):d?(d=!1,e.result+=n.repeat("\n",f+1)):0===f?s&&(e.result+=" "):e.result+=n.repeat("\n",f):e.result+=n.repeat("\n",s?1+f:f),s=!0,u=!0,f=0,i=e.position;!J(a)&&0!==a;)a=e.input.charCodeAt(++e.position);pe(e,i,e.position,!1)}}return!0}(e,d)||function(e,t){var n,i,r;if(39!==(n=e.input.charCodeAt(e.position)))return!1;for(e.kind="scalar",e.result="",e.position++,i=r=e.position;0!==(n=e.input.charCodeAt(e.position));)if(39===n){if(pe(e,i,e.position,!0),39!==(n=e.input.charCodeAt(++e.position)))return!0;i=e.position,e.position++,r=e.position}else J(n)?(pe(e,i,r,!0),ye(e,ge(e,!1,t)),i=r=e.position):e.position===e.lineStart&&me(e)?ce(e,"unexpected end of the document within a single quoted scalar"):(e.position++,r=e.position);ce(e,"unexpected end of the stream within a single quoted scalar")}(e,d)||function(e,t){var n,i,r,o,a,l,c;if(34!==(l=e.input.charCodeAt(e.position)))return!1;for(e.kind="scalar",e.result="",e.position++,n=i=e.position;0!==(l=e.input.charCodeAt(e.position));){if(34===l)return pe(e,n,e.position,!0),e.position++,!0;if(92===l){if(pe(e,n,e.position,!0),J(l=e.input.charCodeAt(++e.position)))ge(e,!1,t);else if(l<256&&ie[l])e.result+=re[l],e.position++;else if((a=120===(c=l)?2:117===c?4:85===c?8:0)>0){for(r=a,o=0;r>0;r--)(a=ee(l=e.input.charCodeAt(++e.position)))>=0?o=(o<<4)+a:ce(e,"expected hexadecimal character");e.result+=ne(o),e.position++}else ce(e,"unknown escape sequence");n=i=e.position}else J(l)?(pe(e,n,i,!0),ye(e,ge(e,!1,t)),n=i=e.position):e.position===e.lineStart&&me(e)?ce(e,"unexpected end of the document within a double quoted scalar"):(e.position++,i=e.position)}ce(e,"unexpected end of the stream within a double quoted scalar")}(e,d)?y=!0:!function(e){var t,n,i;if(42!==(i=e.input.charCodeAt(e.position)))return!1;for(i=e.input.charCodeAt(++e.position),t=e.position;0!==i&&!z(i)&&!X(i);)i=e.input.charCodeAt(++e.position);return e.position===t&&ce(e,"name of an alias node must contain at least one character"),n=e.input.slice(t,e.position),P.call(e.anchorMap,n)||ce(e,'unidentified alias "'+n+'"'),e.result=e.anchorMap[n],ge(e,!0,-1),!0}(e)?function(e,t,n){var i,r,o,a,l,c,s,u,p=e.kind,f=e.result;if(z(u=e.input.charCodeAt(e.position))||X(u)||35===u||38===u||42===u||33===u||124===u||62===u||39===u||34===u||37===u||64===u||96===u)return!1;if((63===u||45===u)&&(z(i=e.input.charCodeAt(e.position+1))||n&&X(i)))return!1;for(e.kind="scalar",e.result="",r=o=e.position,a=!1;0!==u;){if(58===u){if(z(i=e.input.charCodeAt(e.position+1))||n&&X(i))break}else if(35===u){if(z(e.input.charCodeAt(e.position-1)))break}else{if(e.position===e.lineStart&&me(e)||n&&X(u))break;if(J(u)){if(l=e.line,c=e.lineStart,s=e.lineIndent,ge(e,!1,-1),e.lineIndent>=t){a=!0,u=e.input.charCodeAt(e.position);continue}e.position=o,e.line=l,e.lineStart=c,e.lineIndent=s;break}}a&&(pe(e,r,o,!1),ye(e,e.line-l),r=o=e.position,a=!1),Q(u)||(o=e.position+1),u=e.input.charCodeAt(++e.position)}return pe(e,r,o,!1),!!e.result||(e.kind=p,e.result=f,!1)}(e,d,1===i)&&(y=!0,null===e.tag&&(e.tag="?")):(y=!0,null===e.tag&&null===e.anchor||ce(e,"alias node should not have any properties")),null!==e.anchor&&(e.anchorMap[e.anchor]=e.result)):0===g&&(y=c&&be(e,h))),null===e.tag)null!==e.anchor&&(e.anchorMap[e.anchor]=e.result);else if("?"===e.tag){for(null!==e.result&&"scalar"!==e.kind&&ce(e,'unacceptable node kind for !<?> tag; it should be "scalar", not "'+e.kind+'"'),s=0,u=e.implicitTypes.length;s<u;s+=1)if((f=e.implicitTypes[s]).resolve(e.result)){e.result=f.construct(e.result),e.tag=f.tag,null!==e.anchor&&(e.anchorMap[e.anchor]=e.result);break}}else if("!"!==e.tag){if(P.call(e.typeMap[e.kind||"fallback"],e.tag))f=e.typeMap[e.kind||"fallback"][e.tag];else for(f=null,s=0,u=(p=e.typeMap.multi[e.kind||"fallback"]).length;s<u;s+=1)if(e.tag.slice(0,p[s].tag.length)===p[s].tag){f=p[s];break}f||ce(e,"unknown tag !<"+e.tag+">"),null!==e.result&&f.kind!==e.kind&&ce(e,"unacceptable node kind for !<"+e.tag+'> tag; it should be "'+f.kind+'", not "'+e.kind+'"'),f.resolve(e.result,e.tag)?(e.result=f.construct(e.result,e.tag),null!==e.anchor&&(e.anchorMap[e.anchor]=e.result)):ce(e,"cannot resolve a node with !<"+e.tag+"> explicit tag")}return null!==e.listener&&e.listener("close",e),null!==e.tag||null!==e.anchor||y}function ke(e){var t,n,i,r,o=e.position,a=!1;for(e.version=null,e.checkLineBreaks=e.legacy,e.tagMap=Object.create(null),e.anchorMap=Object.create(null);0!==(r=e.input.charCodeAt(e.position))&&(ge(e,!0,-1),r=e.input.charCodeAt(e.position),!(e.lineIndent>0||37!==r));){for(a=!0,r=e.input.charCodeAt(++e.position),t=e.position;0!==r&&!z(r);)r=e.input.charCodeAt(++e.position);for(i=[],(n=e.input.slice(t,e.position)).length<1&&ce(e,"directive name must not be less than one character in length");0!==r;){for(;Q(r);)r=e.input.charCodeAt(++e.position);if(35===r){do{r=e.input.charCodeAt(++e.position)}while(0!==r&&!J(r));break}if(J(r))break;for(t=e.position;0!==r&&!z(r);)r=e.input.charCodeAt(++e.position);i.push(e.input.slice(t,e.position))}0!==r&&he(e),P.call(ue,n)?ue[n](e,n,i):se(e,'unknown document directive "'+n+'"')}ge(e,!0,-1),0===e.lineIndent&&45===e.input.charCodeAt(e.position)&&45===e.input.charCodeAt(e.position+1)&&45===e.input.charCodeAt(e.position+2)?(e.position+=3,ge(e,!0,-1)):a&&ce(e,"directives end mark is expected"),we(e,e.lineIndent-1,4,!1,!0),ge(e,!0,-1),e.checkLineBreaks&&H.test(e.input.slice(o,e.position))&&se(e,"non-ASCII line breaks are interpreted as content"),e.documents.push(e.result),e.position===e.lineStart&&me(e)?46===e.input.charCodeAt(e.position)&&(e.position+=3,ge(e,!0,-1)):e.position<e.length-1&&ce(e,"end of the stream or a document separator is expected")}function Ce(e,t){t=t||{},0!==(e=String(e)).length&&(10!==e.charCodeAt(e.length-1)&&13!==e.charCodeAt(e.length-1)&&(e+="\n"),65279===e.charCodeAt(0)&&(e=e.slice(1)));var n=new ae(e,t),i=e.indexOf("\0");for(-1!==i&&(n.position=i,ce(n,"null byte is not allowed in input")),n.input+="\0";32===n.input.charCodeAt(n.position);)n.lineIndent+=1,n.position+=1;for(;n.position<n.length-1;)ke(n);return n.documents}var xe={loadAll:function(e,t,n){null!==t&&"object"==typeof t&&void 0===n&&(n=t,t=null);var i=Ce(e,n);if("function"!=typeof t)return i;for(var r=0,o=i.length;r<o;r+=1)t(i[r])},load:function(e,t){var n=Ce(e,t);if(0!==n.length){if(1===n.length)return n[0];throw new o("expected a single document in the stream, but found more")}}},Ie=Object.prototype.toString,Se=Object.prototype.hasOwnProperty,Oe=65279,je={0:"\\0",7:"\\a",8:"\\b",9:"\\t",10:"\\n",11:"\\v",12:"\\f",13:"\\r",27:"\\e",34:'\\"',92:"\\\\",133:"\\N",160:"\\_",8232:"\\L",8233:"\\P"},Te=["y","Y","yes","Yes","YES","on","On","ON","n","N","no","No","NO","off","Off","OFF"],Ne=/^[-+]?[0-9_]+(?::[0-9_]+)+(?:\.[0-9_]*)?$/;function Fe(e){var t,i,r;if(t=e.toString(16).toUpperCase(),e<=255)i="x",r=2;else if(e<=65535)i="u",r=4;else{if(!(e<=4294967295))throw new o("code point within a string may not be greater than 0xFFFFFFFF");i="U",r=8}return"\\"+i+n.repeat("0",r-t.length)+t}function Ee(e){this.schema=e.schema||K,this.indent=Math.max(1,e.indent||2),this.noArrayIndent=e.noArrayIndent||!1,this.skipInvalid=e.skipInvalid||!1,this.flowLevel=n.isNothing(e.flowLevel)?-1:e.flowLevel,this.styleMap=function(e,t){var n,i,r,o,a,l,c;if(null===t)return{};for(n={},r=0,o=(i=Object.keys(t)).length;r<o;r+=1)a=i[r],l=String(t[a]),"!!"===a.slice(0,2)&&(a="tag:yaml.org,2002:"+a.slice(2)),(c=e.compiledTypeMap.fallback[a])&&Se.call(c.styleAliases,l)&&(l=c.styleAliases[l]),n[a]=l;return n}(this.schema,e.styles||null),this.sortKeys=e.sortKeys||!1,this.lineWidth=e.lineWidth||80,this.noRefs=e.noRefs||!1,this.noCompatMode=e.noCompatMode||!1,this.condenseFlow=e.condenseFlow||!1,this.quotingType='"'===e.quotingType?2:1,this.forceQuotes=e.forceQuotes||!1,this.replacer="function"==typeof e.replacer?e.replacer:null,this.implicitTypes=this.schema.compiledImplicit,this.explicitTypes=this.schema.compiledExplicit,this.tag=null,this.result="",this.duplicates=[],this.usedDuplicates=null}function Me(e,t){for(var i,r=n.repeat(" ",t),o=0,a=-1,l="",c=e.length;o<c;)-1===(a=e.indexOf("\n",o))?(i=e.slice(o),o=c):(i=e.slice(o,a+1),o=a+1),i.length&&"\n"!==i&&(l+=r),l+=i;return l}function Le(e,t){return"\n"+n.repeat(" ",e.indent*t)}function _e(e){return 32===e||9===e}function De(e){return 32<=e&&e<=126||161<=e&&e<=55295&&8232!==e&&8233!==e||57344<=e&&e<=65533&&e!==Oe||65536<=e&&e<=1114111}function Ue(e){return De(e)&&e!==Oe&&13!==e&&10!==e}function qe(e,t,n){var i=Ue(e),r=i&&!_e(e);return(n?i:i&&44!==e&&91!==e&&93!==e&&123!==e&&125!==e)&&35!==e&&!(58===t&&!r)||Ue(t)&&!_e(t)&&35===e||58===t&&r}function Ye(e,t){var n,i=e.charCodeAt(t);return i>=55296&&i<=56319&&t+1<e.length&&(n=e.charCodeAt(t+1))>=56320&&n<=57343?1024*(i-55296)+n-56320+65536:i}function Re(e){return/^\n* /.test(e)}function Be(e,t,n,i,r,o,a,l){var c,s,u=0,p=null,f=!1,d=!1,h=-1!==i,g=-1,m=De(s=Ye(e,0))&&s!==Oe&&!_e(s)&&45!==s&&63!==s&&58!==s&&44!==s&&91!==s&&93!==s&&123!==s&&125!==s&&35!==s&&38!==s&&42!==s&&33!==s&&124!==s&&61!==s&&62!==s&&39!==s&&34!==s&&37!==s&&64!==s&&96!==s&&function(e){return!_e(e)&&58!==e}(Ye(e,e.length-1));if(t||a)for(c=0;c<e.length;u>=65536?c+=2:c++){if(!De(u=Ye(e,c)))return 5;m=m&&qe(u,p,l),p=u}else{for(c=0;c<e.length;u>=65536?c+=2:c++){if(10===(u=Ye(e,c)))f=!0,h&&(d=d||c-g-1>i&&" "!==e[g+1],g=c);else if(!De(u))return 5;m=m&&qe(u,p,l),p=u}d=d||h&&c-g-1>i&&" "!==e[g+1]}return f||d?n>9&&Re(e)?5:a?2===o?5:2:d?4:3:!m||a||r(e)?2===o?5:2:1}function Ke(e,t,n,i,r){e.dump=function(){if(0===t.length)return 2===e.quotingType?'""':"''";if(!e.noCompatMode&&(-1!==Te.indexOf(t)||Ne.test(t)))return 2===e.quotingType?'"'+t+'"':"'"+t+"'";var a=e.indent*Math.max(1,n),l=-1===e.lineWidth?-1:Math.max(Math.min(e.lineWidth,40),e.lineWidth-a),c=i||e.flowLevel>-1&&n>=e.flowLevel;switch(Be(t,c,e.indent,l,(function(t){return function(e,t){var n,i;for(n=0,i=e.implicitTypes.length;n<i;n+=1)if(e.implicitTypes[n].resolve(t))return!0;return!1}(e,t)}),e.quotingType,e.forceQuotes&&!i,r)){case 1:return t;case 2:return"'"+t.replace(/'/g,"''")+"'";case 3:return"|"+Pe(t,e.indent)+We(Me(t,a));case 4:return">"+Pe(t,e.indent)+We(Me(function(e,t){var n,i,r=/(\n+)([^\n]*)/g,o=(l=e.indexOf("\n"),l=-1!==l?l:e.length,r.lastIndex=l,He(e.slice(0,l),t)),a="\n"===e[0]||" "===e[0];var l;for(;i=r.exec(e);){var c=i[1],s=i[2];n=" "===s[0],o+=c+(a||n||""===s?"":"\n")+He(s,t),a=n}return o}(t,l),a));case 5:return'"'+function(e){for(var t,n="",i=0,r=0;r<e.length;i>=65536?r+=2:r++)i=Ye(e,r),!(t=je[i])&&De(i)?(n+=e[r],i>=65536&&(n+=e[r+1])):n+=t||Fe(i);return n}(t)+'"';default:throw new o("impossible error: invalid scalar style")}}()}function Pe(e,t){var n=Re(e)?String(t):"",i="\n"===e[e.length-1];return n+(i&&("\n"===e[e.length-2]||"\n"===e)?"+":i?"":"-")+"\n"}function We(e){return"\n"===e[e.length-1]?e.slice(0,-1):e}function He(e,t){if(""===e||" "===e[0])return e;for(var n,i,r=/ [^ ]/g,o=0,a=0,l=0,c="";n=r.exec(e);)(l=n.index)-o>t&&(i=a>o?a:l,c+="\n"+e.slice(o,i),o=i+1),a=l;return c+="\n",e.length-o>t&&a>o?c+=e.slice(o,a)+"\n"+e.slice(a+1):c+=e.slice(o),c.slice(1)}function $e(e,t,n,i){var r,o,a,l="",c=e.tag;for(r=0,o=n.length;r<o;r+=1)a=n[r],e.replacer&&(a=e.replacer.call(n,String(r),a)),(Ve(e,t+1,a,!0,!0,!1,!0)||void 0===a&&Ve(e,t+1,null,!0,!0,!1,!0))&&(i&&""===l||(l+=Le(e,t)),e.dump&&10===e.dump.charCodeAt(0)?l+="-":l+="- ",l+=e.dump);e.tag=c,e.dump=l||"[]"}function Ge(e,t,n){var i,r,a,l,c,s;for(a=0,l=(r=n?e.explicitTypes:e.implicitTypes).length;a<l;a+=1)if(((c=r[a]).instanceOf||c.predicate)&&(!c.instanceOf||"object"==typeof t&&t instanceof c.instanceOf)&&(!c.predicate||c.predicate(t))){if(n?c.multi&&c.representName?e.tag=c.representName(t):e.tag=c.tag:e.tag="?",c.represent){if(s=e.styleMap[c.tag]||c.defaultStyle,"[object Function]"===Ie.call(c.represent))i=c.represent(t,s);else{if(!Se.call(c.represent,s))throw new o("!<"+c.tag+'> tag resolver accepts not "'+s+'" style');i=c.represent[s](t,s)}e.dump=i}return!0}return!1}function Ve(e,t,n,i,r,a,l){e.tag=null,e.dump=n,Ge(e,n,!1)||Ge(e,n,!0);var c,s=Ie.call(e.dump),u=i;i&&(i=e.flowLevel<0||e.flowLevel>t);var p,f,d="[object Object]"===s||"[object Array]"===s;if(d&&(f=-1!==(p=e.duplicates.indexOf(n))),(null!==e.tag&&"?"!==e.tag||f||2!==e.indent&&t>0)&&(r=!1),f&&e.usedDuplicates[p])e.dump="*ref_"+p;else{if(d&&f&&!e.usedDuplicates[p]&&(e.usedDuplicates[p]=!0),"[object Object]"===s)i&&0!==Object.keys(e.dump).length?(!function(e,t,n,i){var r,a,l,c,s,u,p="",f=e.tag,d=Object.keys(n);if(!0===e.sortKeys)d.sort();else if("function"==typeof e.sortKeys)d.sort(e.sortKeys);else if(e.sortKeys)throw new o("sortKeys must be a boolean or a function");for(r=0,a=d.length;r<a;r+=1)u="",i&&""===p||(u+=Le(e,t)),c=n[l=d[r]],e.replacer&&(c=e.replacer.call(n,l,c)),Ve(e,t+1,l,!0,!0,!0)&&((s=null!==e.tag&&"?"!==e.tag||e.dump&&e.dump.length>1024)&&(e.dump&&10===e.dump.charCodeAt(0)?u+="?":u+="? "),u+=e.dump,s&&(u+=Le(e,t)),Ve(e,t+1,c,!0,s)&&(e.dump&&10===e.dump.charCodeAt(0)?u+=":":u+=": ",p+=u+=e.dump));e.tag=f,e.dump=p||"{}"}(e,t,e.dump,r),f&&(e.dump="&ref_"+p+e.dump)):(!function(e,t,n){var i,r,o,a,l,c="",s=e.tag,u=Object.keys(n);for(i=0,r=u.length;i<r;i+=1)l="",""!==c&&(l+=", "),e.condenseFlow&&(l+='"'),a=n[o=u[i]],e.replacer&&(a=e.replacer.call(n,o,a)),Ve(e,t,o,!1,!1)&&(e.dump.length>1024&&(l+="? "),l+=e.dump+(e.condenseFlow?'"':"")+":"+(e.condenseFlow?"":" "),Ve(e,t,a,!1,!1)&&(c+=l+=e.dump));e.tag=s,e.dump="{"+c+"}"}(e,t,e.dump),f&&(e.dump="&ref_"+p+" "+e.dump));else if("[object Array]"===s)i&&0!==e.dump.length?(e.noArrayIndent&&!l&&t>0?$e(e,t-1,e.dump,r):$e(e,t,e.dump,r),f&&(e.dump="&ref_"+p+e.dump)):(!function(e,t,n){var i,r,o,a="",l=e.tag;for(i=0,r=n.length;i<r;i+=1)o=n[i],e.replacer&&(o=e.replacer.call(n,String(i),o)),(Ve(e,t,o,!1,!1)||void 0===o&&Ve(e,t,null,!1,!1))&&(""!==a&&(a+=","+(e.condenseFlow?"":" ")),a+=e.dump);e.tag=l,e.dump="["+a+"]"}(e,t,e.dump),f&&(e.dump="&ref_"+p+" "+e.dump));else{if("[object String]"!==s){if("[object Undefined]"===s)return!1;if(e.skipInvalid)return!1;throw new o("unacceptable kind of an object to dump "+s)}"?"!==e.tag&&Ke(e,e.dump,t,a,u)}null!==e.tag&&"?"!==e.tag&&(c=encodeURI("!"===e.tag[0]?e.tag.slice(1):e.tag).replace(/!/g,"%21"),c="!"===e.tag[0]?"!"+c:"tag:yaml.org,2002:"===c.slice(0,18)?"!!"+c.slice(18):"!<"+c+">",e.dump=c+" "+e.dump)}return!0}function Ze(e,t){var n,i,r=[],o=[];for(Je(e,r,o),n=0,i=o.length;n<i;n+=1)t.duplicates.push(r[o[n]]);t.usedDuplicates=new Array(i)}function Je(e,t,n){var i,r,o;if(null!==e&&"object"==typeof e)if(-1!==(r=t.indexOf(e)))-1===n.indexOf(r)&&n.push(r);else if(t.push(e),Array.isArray(e))for(r=0,o=e.length;r<o;r+=1)Je(e[r],t,n);else for(r=0,o=(i=Object.keys(e)).length;r<o;r+=1)Je(e[i[r]],t,n)}function Qe(e,t){return function(){throw new Error("Function yaml."+e+" is removed in js-yaml 4. Use yaml."+t+" instead, which is now safe by default.")}}var ze=p,Xe=h,et=b,tt=O,nt=j,it=K,rt=xe.load,ot=xe.loadAll,at={dump:function(e,t){var n=new Ee(t=t||{});n.noRefs||Ze(e,n);var i=e;return n.replacer&&(i=n.replacer.call({"":i},"",i)),Ve(n,0,i,!0,!0)?n.dump+"\n":""}}.dump,lt=o,ct={binary:L,float:S,map:y,null:A,pairs:Y,set:B,timestamp:F,bool:v,int:C,merge:E,omap:U,seq:m,str:g},st=Qe("safeLoad","load"),ut=Qe("safeLoadAll","loadAll"),pt=Qe("safeDump","dump"),ft={Type:ze,Schema:Xe,FAILSAFE_SCHEMA:et,JSON_SCHEMA:tt,CORE_SCHEMA:nt,DEFAULT_SCHEMA:it,load:rt,loadAll:ot,dump:at,YAMLException:lt,types:ct,safeLoad:st,safeLoadAll:ut,safeDump:pt};e.CORE_SCHEMA=nt,e.DEFAULT_SCHEMA=it,e.FAILSAFE_SCHEMA=et,e.JSON_SCHEMA=tt,e.Schema=Xe,e.Type=ze,e.YAMLException=lt,e.default=ft,e.dump=at,e.load=rt,e.loadAll=ot,e.safeDump=pt,e.safeLoad=st,e.safeLoadAll=ut,e.types=ct,Object.defineProperty(e,"__esModule",{value:!0})}));</script>
+<script>// ============================================================
+// Shared helpers (used by both the manager UI and the generated
+// respondent-facing client). Kept in one place so the two script
+// bundles never drift apart silently.
+// ============================================================
+
+/** Maskiert HTML-Sonderzeichen, um XSS zu verhindern. */
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Ersetzt Sonderzeichen im Dateinamen durch Unterstriche. */
+function sanitizeFilename(str) {
+  return String(str).replace(/[^a-zA-Z0-9\-_äöüÄÖÜß]/g, '_').replace(/_+/g, '_').trim();
+}
+
+// ============================================================
+// App-Version
+// ============================================================
+const APP_VERSION = '2.1.0';
+
+/** Parst eine "major.minor.patch"-Versionsnummer. */
+function parseVersion(v) {
+  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String(v || ''));
+  if (!m) return null;
+  return { major: +m[1], minor: +m[2], patch: +m[3] };
+}
+
+/** Vergleicht zwei Versionen. Gibt 'major', 'minor', 'patch' oder null (identisch) zurück, je nachdem auf welcher Ebene sie zuerst abweichen. */
+function compareVersions(a, b) {
+  const pa = parseVersion(a);
+  const pb = parseVersion(b);
+  if (!pa || !pb) return 'unknown';
+  if (pa.major !== pb.major) return 'major';
+  if (pa.minor !== pb.minor) return 'minor';
+  if (pa.patch !== pb.patch) return 'patch';
+  return null;
+}
+
+/** Löst einen Datei-Download aus. */
+function triggerDownload(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ============================================================
+// localStorage-Helfer (mit try/catch für Firefox file://)
+// ============================================================
+let lsOk = true;
+
+function lsGet(key) {
+  try { return localStorage.getItem(key); }
+  catch (e) { lsOk = false; return null; }
+}
+
+function lsSet(key, value) {
+  try { localStorage.setItem(key, value); }
+  catch (e) { lsOk = false; }
+}
+
+function lsRemove(key) {
+  try { localStorage.removeItem(key); }
+  catch (e) { lsOk = false; }
+}
+
+function lsKeys() {
+  try { return Object.keys(localStorage); }
+  catch (e) { lsOk = false; return []; }
+}
+
+// ============================================================
+// Einheitliches YAML-Format (Umfrage-Definition ⇄ Client-Antworten).
+// Ab APP_VERSION 2.0.0 verwenden Umfrage-Definitions-Export/-Import,
+// der aus dem Manager exportierte Client-Input und der Antwort-Export/
+// -Import des HTML-Clients dieselbe Struktur:
+//
+// {
+//   uuid, bezeichnung, frist, bezeichner_label, app_version,
+//   antwort_meta: { befragte, version, datum, notizen },
+//   fragen: [ { id, typ, text, optionen?, einheit?, erlaubtDezimal?, antwort } ]
+// }
+//
+// `antwort` je Frage ist bei einem reinen Definitions-Export leer/nicht
+// aussagekräftig; `antwort_meta.version` ist ein rein informativer
+// Zähler (Auto-Inkrement beim Client-Import), niemals ein Integritäts-
+// oder Authentizitätsnachweis (siehe CLAUDE.md, plan-gitHubPageClient.md
+// "Security Implications" #6).
+//
+// Dieses Modul ist bewusst dependency-frei (kein Modul-System) und wird
+// von build.py als eigenständiger Textblock zwischen common.js und der
+// jeweiligen App-Logik (manager.js / client.js) in denselben <script>-
+// Block eingefügt.
+// ============================================================
+
+/** Ab welcher Hauptversion ("major") ein importiertes Objekt als
+ * Einheitsformat gilt. Dateien mit niedrigerer Hauptversion (oder den
+ * alten, vor der Vereinheitlichung verwendeten Feldnamen) werden
+ * abgelehnt statt stillschweigend fehlinterpretiert zu werden. */
+const UNIFIED_FORMAT_MIN_MAJOR = 2;
+
+/** Gültige Frage-ID: nur Buchstaben, Zahlen, "_" und "-". */
+const QUESTION_ID_RE = /^[A-Za-z0-9_-]+$/;
+
+const LEGACY_FORMAT_ERROR =
+  'Diese Datei wurde mit einer App-Version vor 2.0.0 erstellt und verwendet ein ' +
+  'inzwischen abgelöstes Dateiformat, das nicht mehr unterstützt wird. Bitte exportieren ' +
+  'Sie die Datei erneut mit einer aktuellen Version der Anwendung.';
+
+/** Erkennt strukturell und versionsseitig Dateien aus der Zeit vor der
+ * Formatvereinheitlichung (< 2.0.0): alte Feldnamen (`umfrage_uuid`,
+ * `bezeichnung_umfrage`, eine separate `antworten`-Map) oder eine
+ * `app_version` mit Hauptversion < 2. */
+function isLegacyFormat(data) {
+  if (!data || typeof data !== 'object') return false;
+  if (data.umfrage_uuid !== undefined || data.bezeichnung_umfrage !== undefined || data.antworten !== undefined) {
+    return true;
+  }
+  if (data.app_version) {
+    const v = parseVersion(data.app_version);
+    if (v && v.major < UNIFIED_FORMAT_MIN_MAJOR) return true;
+  }
+  return false;
+}
+
+/** Sanitisiert/dedupliziert Frage-IDs in-place (analog der bisherigen
+ * applyImportedSurvey()-Logik im Manager): eine ungültige ID wird durch
+ * "f<Index+1>" ersetzt, Duplikate erhalten einen "_2", "_3", …-Suffix. */
+function sanitizeQuestionIds(fragen) {
+  fragen.forEach((q, idx) => {
+    let id = String(q.id != null ? q.id : '').trim();
+    if (!QUESTION_ID_RE.test(id)) id = 'f' + (idx + 1);
+    q.id = id;
+  });
+  const seen = new Set();
+  fragen.forEach(q => {
+    let id = q.id;
+    let n = 2;
+    while (seen.has(id)) { id = q.id + '_' + n; n++; }
+    q.id = id;
+    seen.add(id);
+  });
+  return fragen;
+}
+
+/** Koerziert eine rohe (nicht vertrauenswürdige) Frageliste in die
+ * interne Definitionsform. Mit `withAnswers: true` wird zusätzlich das
+ * `antwort`-Feld je Frage übernommen (als String, Default `''`). */
+function coerceFragen(rawFragen, { withAnswers = false } = {}) {
+  const fragen = (Array.isArray(rawFragen) ? rawFragen : []).map((q, idx) => {
+    const typ = (q && q.typ) ? String(q.typ) : 'freitext';
+    const obj = {
+      id: (q && q.id != null) ? String(q.id) : '',
+      typ,
+      text: String((q && q.text) || '')
+    };
+    if (typ === 'auswahl') obj.optionen = ((q && q.optionen) || []).map(String);
+    if (typ === 'zahl') {
+      obj.einheit = String((q && q.einheit) || '');
+      obj.erlaubtDezimal = !!(q && q.erlaubtDezimal);
+    }
+    if (withAnswers) obj.antwort = String((q && q.antwort != null) ? q.antwort : '');
+    return obj;
+  });
+  return sanitizeQuestionIds(fragen);
+}
+
+/** Koerziert ein rohes antwort_meta-Objekt mit robusten Defaults. */
+function coerceAntwortMeta(raw) {
+  const m = (raw && typeof raw === 'object') ? raw : {};
+  const version = Number(m.version);
+  return {
+    befragte: String(m.befragte || ''),
+    version: Number.isFinite(version) ? version : 0,
+    datum: String(m.datum || ''),
+    notizen: String(m.notizen || '')
+  };
+}
+
+/** Baut das vollständige Einheitsformat-Objekt für den Export. Wird
+ * sowohl vom Manager (Definitions-/Client-Export, `antwort`-Felder und
+ * `antwort_meta` leer) als auch vom Client (Antwort-Export, befüllt)
+ * verwendet. */
+function buildUnifiedSurvey({ uuid, bezeichnung, frist, bezeichnerLabel, fragen, antwortMeta, appVersion }) {
+  return {
+    uuid: uuid || '',
+    bezeichnung: bezeichnung || '',
+    frist: frist || '',
+    bezeichner_label: bezeichnerLabel || 'Hochschule',
+    app_version: appVersion || APP_VERSION,
+    antwort_meta: coerceAntwortMeta(antwortMeta),
+    fragen: fragen || []
+  };
+}
+
+/** Parst/validiert ein importiertes Umfrage- oder Antwort-Objekt gegen
+ * das Einheitsformat. Wirft bei Alt-Format oder grob invalider Struktur
+ * einen Error mit einer für Endnutzer:innen verständlichen deutschen
+ * Meldung — Aufrufer sollen diese Meldung direkt anzeigen, nicht die
+ * Datei stillschweigend ignorieren oder falsch interpretieren.
+ *
+ * `withAnswers`: ob die `antwort`-Felder der Fragen übernommen werden
+ * sollen (Antwort-Import in Manager/Client) oder nicht (reiner
+ * Definitions-Import im Manager). */
+function parseUnifiedSurvey(data, { withAnswers = false } = {}) {
+  if (!data || typeof data !== 'object') throw new Error('Ungültiges YAML: Die Datei enthält kein Objekt.');
+  if (isLegacyFormat(data)) throw new Error(LEGACY_FORMAT_ERROR);
+
+  return {
+    uuid: data.uuid != null ? String(data.uuid) : '',
+    bezeichnung: String(data.bezeichnung || ''),
+    frist: String(data.frist || ''),
+    bezeichner_label: String(data.bezeichner_label || 'Hochschule'),
+    app_version: data.app_version ? String(data.app_version) : '',
+    antwort_meta: coerceAntwortMeta(data.antwort_meta),
+    fragen: coerceFragen(data.fragen, { withAnswers })
+  };
+}
+
+// Respondentenseitiges Client-Skript (Fragebogen-Logik).
+// Nutzt die Helfer aus src/shared/common.js (escapeHtml [ungenutzt hier,
+// da ausschließlich textContent/createElement verwendet wird],
+// sanitizeFilename, triggerDownload, lsGet/lsSet/lsRemove/lsKeys,
+// APP_VERSION, compareVersions) sowie das Einheitsformat-Modul
+// src/shared/format.js (buildUnifiedSurvey, parseUnifiedSurvey), die vom
+// Build vor diesem Skript in denselben <script>-Block eingefügt werden.
+//
+// Zwei Betriebsarten (seit Phase 2, siehe plan-gitHubPageClient.md):
+//  - Eingebettetes Survey (per HTML exportierter Client, buildClientHtml()
+//    im Manager): SURVEY ist beim Laden bereits ein echtes Objekt
+//    (Einheitsformat, siehe src/shared/format.js), die Fragebogen-Ansicht
+//    erscheint sofort — unverändertes Verhalten.
+//  - Gehosteter Client (build.py erzeugt client/index.html mit
+//    SURVEY = null): es erscheint zunächst nur eine Start-Ansicht
+//    (Beschreibung + Datei-Import + Drag-&-Drop); erst nach erfolgreichem
+//    Import einer YAML-Datei wird SURVEY (Laufzeit-Zustand, kein
+//    Build-Konstante mehr) gesetzt und die Fragebogen-Ansicht gerendert.
+let SURVEY = null;
+
+// Wird einmalig beim Skriptstart ausgewertet (bevor SURVEY ggf. durch einen
+// Import überschrieben wird) und steuert, ob die "Andere Umfrage laden"-
+// Option überhaupt sinnvoll ist (nur beim gehosteten Client, s. u.).
+const HOSTED_MODE = (SURVEY === null);
+
+let UUID = null;
+let LS_PREFIX = null;
+
+/** Übernimmt ein geparstes Einheitsformat-Objekt als aktiven Umfrage-Zustand
+ * und leitet UUID/localStorage-Präfix daraus ab (statt aus einer
+ * Build-Zeit-Konstante — im gehosteten Client ist die UUID erst nach dem
+ * Import einer Umfrage bekannt). */
+function setSurveyState(data) {
+  SURVEY = data;
+  UUID = SURVEY.uuid;
+  LS_PREFIX = 'umfrageClient.' + UUID;
+}
+
+if (SURVEY) setSurveyState(SURVEY);
+
+/** Setzt Titel, Frist und den Befragten-Label-Text/-Platzhalter zur
+ * Laufzeit per textContent/placeholder (kein innerHTML) aus SURVEY. Muss
+ * für beide Betriebsarten aufgerufen werden: im eingebetteten Client sind
+ * {{TITLE}}/{{BEFRAGTER_LABEL}} zwar bereits als escapte Platzhalter vom
+ * Export befüllt, aber der gehostete Client kennt diese Werte erst nach
+ * dem Import einer YAML-Datei zur Laufzeit — deshalb hier einheitlich per
+ * DOM-API gesetzt statt sich auf Export-Zeit-Escaping zu verlassen (siehe
+ * plan-gitHubPageClient.md, "Security Implications" #4). */
+function applySurveyMeta() {
+  document.getElementById('survey-title').textContent = SURVEY.bezeichnung || 'Umfrage';
+  document.getElementById('survey-frist').textContent = SURVEY.frist ? ('Frist: ' + SURVEY.frist) : '';
+  document.title = SURVEY.bezeichnung || 'Umfrage';
+  const label = SURVEY.bezeichner_label || 'Hochschule';
+  document.getElementById('label-befragte').textContent = label;
+  document.getElementById('meta-befragte').placeholder = label;
+  document.getElementById('help-befragter-label').textContent = label;
+}
+
+function loadAnswers() {
+  const meta = lsGet(LS_PREFIX + '.meta');
+  // Ohne gespeicherten Fortschritt auf die im Client eingebetteten Werte
+  // zurückfallen (antwort_meta bzw. das antwort-Feld je Frage).
+  const m = meta ? JSON.parse(meta) : (SURVEY.antwort_meta || {});
+  document.getElementById('meta-befragte').value = m.befragte || '';
+  document.getElementById('meta-version').value = (m.version !== undefined && m.version !== null && m.version !== '') ? m.version : 0;
+  document.getElementById('meta-notizen').value = m.notizen || '';
+
+  SURVEY.fragen.forEach(q => {
+    const stored = lsGet(LS_PREFIX + '.' + q.id);
+    const val = stored !== null ? stored : (q.antwort || '');
+    if (!val) return;
+    if (q.typ === 'freitext' || q.typ === 'zahl') {
+      const el = document.getElementById('q-' + q.id);
+      if (el) el.value = val;
+    } else if (q.typ === 'ja_nein') {
+      const el = document.querySelector('input[name="q-' + q.id + '"][value="' + val + '"]');
+      if (el) el.checked = true;
+    } else if (q.typ === 'auswahl') {
+      const els = document.querySelectorAll('input[name="q-' + q.id + '"]');
+      els.forEach(r => { if (r.value === val) r.checked = true; });
+    }
+  });
+}
+
+function saveAnswers() {
+  lsSet(LS_PREFIX + '.meta', JSON.stringify({
+    befragte: document.getElementById('meta-befragte').value,
+    version: document.getElementById('meta-version').value,
+    notizen: document.getElementById('meta-notizen').value
+  }));
+  SURVEY.fragen.forEach(q => {
+    let val = '';
+    if (q.typ === 'freitext' || q.typ === 'zahl') {
+      const el = document.getElementById('q-' + q.id);
+      val = el ? el.value : '';
+    } else {
+      const el = document.querySelector('input[name="q-' + q.id + '"]:checked');
+      val = el ? el.value : '';
+    }
+    lsSet(LS_PREFIX + '.' + q.id, val);
+  });
+}
+
+// ---- Fragen rendern ----
+function renderQuestions() {
+  const container = document.getElementById('questions-container');
+  SURVEY.fragen.forEach((q, idx) => {
+    const card = document.createElement('div');
+    card.className = 'question-card';
+
+    const numEl = document.createElement('div');
+    numEl.className = 'question-num';
+    numEl.textContent = 'Frage ' + (idx + 1);
+
+    const textEl = document.createElement('div');
+    textEl.className = 'question-text';
+    textEl.textContent = q.text;
+
+    card.appendChild(numEl);
+    card.appendChild(textEl);
+
+    if (q.typ === 'freitext') {
+      const ta = document.createElement('textarea');
+      ta.id = 'q-' + q.id;
+      ta.rows = 3;
+      ta.style.cssText = 'resize:vertical; width:100%; padding:0.45rem 0.75rem; border:1px solid var(--border); border-radius:6px; font-size:0.875rem;';
+      ta.addEventListener('input', saveAnswers);
+      card.appendChild(ta);
+
+    } else if (q.typ === 'ja_nein') {
+      const group = document.createElement('div');
+      group.className = 'radio-group';
+      ['ja', 'nein'].forEach(val => {
+        const lbl = document.createElement('label');
+        lbl.className = 'radio-label';
+        const inp = document.createElement('input');
+        inp.type = 'radio'; inp.name = 'q-' + q.id; inp.value = val;
+        inp.addEventListener('change', saveAnswers);
+        const span = document.createElement('span');
+        span.textContent = val.charAt(0).toUpperCase() + val.slice(1);
+        lbl.appendChild(inp); lbl.appendChild(span);
+        group.appendChild(lbl);
+      });
+      card.appendChild(group);
+
+    } else if (q.typ === 'auswahl') {
+      const group = document.createElement('div');
+      group.className = 'choice-group';
+      (q.optionen || []).forEach(opt => {
+        const lbl = document.createElement('label');
+        lbl.className = 'choice-label';
+        const inp = document.createElement('input');
+        inp.type = 'radio'; inp.name = 'q-' + q.id; inp.value = opt;
+        inp.addEventListener('change', saveAnswers);
+        const span = document.createElement('span');
+        span.textContent = opt;
+        lbl.appendChild(inp); lbl.appendChild(span);
+        group.appendChild(lbl);
+      });
+      card.appendChild(group);
+
+    } else if (q.typ === 'zahl') {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex; align-items:center; gap:0.5rem;';
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.id = 'q-' + q.id;
+      inp.step = q.erlaubtDezimal ? 'any' : '1';
+      inp.style.cssText = 'width:auto; flex:0 0 160px;';
+      inp.addEventListener('input', saveAnswers);
+      wrap.appendChild(inp);
+      if (q.einheit) {
+        const unitSpan = document.createElement('span');
+        unitSpan.style.color = 'var(--muted)';
+        unitSpan.textContent = q.einheit;
+        wrap.appendChild(unitSpan);
+      }
+      card.appendChild(wrap);
+    }
+
+    container.appendChild(card);
+  });
+}
+
+// ---- Export ----
+function exportAnswers() {
+  const befragte = document.getElementById('meta-befragte').value.trim();
+  // "befragte" bleibt Pflichtfeld für einen gültigen Antwort-Export;
+  // "version" ist inzwischen rein informativ (Auto-Inkrement beim
+  // Import) und daher kein Pflichtfeld mehr (Einheitsformat, siehe
+  // src/shared/format.js und plan-gitHubPageClient.md Entscheidung 4).
+  if (!befragte) {
+    alert('Bitte füllen Sie das Pflichtfeld aus (mit * markiert).');
+    return;
+  }
+  const version = document.getElementById('meta-version').value.trim();
+  const notizen = document.getElementById('meta-notizen').value;
+
+  const fragen = SURVEY.fragen.map(q => {
+    let val = '';
+    if (q.typ === 'freitext' || q.typ === 'zahl') {
+      const el = document.getElementById('q-' + q.id);
+      val = el ? el.value : '';
+    } else {
+      const el = document.querySelector('input[name="q-' + q.id + '"]:checked');
+      val = el ? el.value : '';
+    }
+    const obj = { id: q.id, typ: q.typ, text: q.text };
+    if (q.typ === 'auswahl') obj.optionen = q.optionen || [];
+    if (q.typ === 'zahl') {
+      obj.einheit = q.einheit || '';
+      obj.erlaubtDezimal = !!q.erlaubtDezimal;
+    }
+    obj.antwort = val;
+    return obj;
+  });
+
+  const exportData = buildUnifiedSurvey({
+    uuid: UUID,
+    bezeichnung: SURVEY.bezeichnung,
+    frist: SURVEY.frist,
+    bezeichnerLabel: SURVEY.bezeichner_label,
+    fragen,
+    antwortMeta: { befragte, version, datum: new Date().toISOString().slice(0, 10), notizen },
+    appVersion: APP_VERSION
+  });
+
+  const yml = jsyaml.dump(exportData, { lineWidth: -1 });
+  const filename = sanitizeFilename(befragte) + '_v' + sanitizeFilename(String(version || 0)) + '.yaml';
+  triggerDownload(yml, filename, 'application/x-yaml;charset=utf-8');
+}
+
+// ---- Import ----
+
+/** Liest eine Datei als YAML, parst/validiert sie gegen das
+ * Einheitsformat und ruft bei Erfolg onParsed(data) auf. Alt-Format oder
+ * grob invalide Dateien werden mit einer Fehlermeldung abgelehnt statt
+ * stumm falsch interpretiert zu werden (parseUnifiedSurvey(),
+ * src/shared/format.js). Einziger FileReader/Parse-Pfad für beide
+ * Aufrufer unten (Datei-Auswahl und Drag & Drop) — keine doppelte
+ * Parsing-Logik. */
+function readYamlFile(file, onParsed) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const raw = jsyaml.load(e.target.result);
+      const data = parseUnifiedSurvey(raw, { withAnswers: true });
+      onParsed(data);
+    } catch (err) {
+      alert('Fehler beim Importieren:\n' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+/** Übernimmt ein geparstes Einheitsformat-Objekt in die Formularfelder.
+ * `isInitialLoad` unterscheidet den erstmaligen Import einer Umfrage im
+ * gehosteten Client (noch kein SURVEY gesetzt, UUID-Prüfung entfällt,
+ * Fragen müssen erst gerendert werden) vom "normalen" Re-Import einer
+ * (ggf. teilweise ausgefüllten) Antwortdatei in eine bereits geladene
+ * Umfrage (UUID-Abgleich gegen die aktuell aktive Umfrage). In beiden
+ * Fällen wird der Versionszähler genau gleich behandelt: Auto-Inkrement,
+ * rein informativ, kein Integritäts-/Authentizitätsnachweis (siehe
+ * plan-gitHubPageClient.md Entscheidung 4 und "Security Implications" #6).
+ * Gibt true zurück, wenn die Daten übernommen wurden. */
+function applyImportedData(data, isInitialLoad) {
+  if (isInitialLoad) {
+    if (!data.uuid) {
+      alert('Diese Datei enthält keine gültige Umfrage-UUID und kann nicht als Umfrage geladen werden.');
+      return false;
+    }
+    setSurveyState(data);
+    applySurveyMeta();
+    renderQuestions();
+  } else if (data.uuid && data.uuid !== UUID) {
+    alert('Diese Antwort-Datei gehört zu einer anderen Umfrage (UUID: ' + data.uuid + ').');
+    return false;
+  }
+
+  if (data.app_version) {
+    const diff = compareVersions(data.app_version, APP_VERSION);
+    if (diff === 'major' || diff === 'minor') {
+      alert('Hinweis: Diese Datei wurde mit einer anderen App-Version (' + data.app_version + ') erstellt als der aktuell verwendete Client (' + APP_VERSION + ').');
+    }
+  }
+
+  // Felder befüllen
+  const meta = data.antwort_meta || {};
+  document.getElementById('meta-befragte').value = meta.befragte || '';
+  document.getElementById('meta-notizen').value = meta.notizen || '';
+  // Versionszähler: Auto-Inkrement bei jedem Import in den Client.
+  const incomingVersion = Number.isFinite(+meta.version) ? +meta.version : 0;
+  document.getElementById('meta-version').value = incomingVersion + 1;
+
+  data.fragen.forEach(q => {
+    const val = q.antwort;
+    if (val === undefined || val === null || val === '') return;
+    if (q.typ === 'freitext' || q.typ === 'zahl') {
+      const el = document.getElementById('q-' + q.id);
+      if (el) el.value = val;
+    } else {
+      const els = document.querySelectorAll('input[name="q-' + q.id + '"]');
+      els.forEach(r => { r.checked = (r.value === String(val)); });
+    }
+  });
+  saveAnswers();
+  return true;
+}
+
+/** Re-Import einer Antwort-/Definitionsdatei in eine bereits geladene
+ * Umfrage (Fragebogen-Ansicht ist bereits sichtbar). */
+function importAnswers(file) {
+  readYamlFile(file, (data) => applyImportedData(data, false));
+}
+
+/** Erstmaliger Import im gehosteten Client (Start-Ansicht): lädt die
+ * Umfrage aus der Datei und blendet danach von der Start- zur
+ * Fragebogen-Ansicht um. */
+function loadSurveyFile(file) {
+  readYamlFile(file, (data) => {
+    if (!applyImportedData(data, true)) return;
+    document.getElementById('start-view').style.display = 'none';
+    document.getElementById('survey-view').style.display = '';
+    if (HOSTED_MODE) document.getElementById('btn-load-other').style.display = '';
+  });
+}
+
+/** Verkabelt Datei-Auswahl und Drag-&-Drop-Fläche der Start-Ansicht
+ * (nur im gehosteten Client relevant, s. Aufrufer). */
+function wireStartView() {
+  const fileInput = document.getElementById('start-import-file');
+  const dropZone = document.getElementById('drop-zone');
+
+  fileInput.addEventListener('change', function() {
+    if (this.files[0]) loadSurveyFile(this.files[0]);
+    this.value = '';
+  });
+
+  function isYamlFile(file) {
+    return /\.ya?ml$/i.test(file.name);
+  }
+
+  // Dokument-weites preventDefault auf dragover/drop: ohne dies öffnet/
+  // zeigt der Browser bei einem Drop NEBEN der Drop-Fläche die YAML-Datei
+  // als Rohtext-Seite an (Navigation weg von der Anwendung) — siehe
+  // plan-gitHubPageClient.md, "Potential Conflicts & Issues".
+  document.addEventListener('dragover', (e) => e.preventDefault());
+  document.addEventListener('drop', (e) => e.preventDefault());
+
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('drop-zone-active');
+  });
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('drop-zone-active');
+  });
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('drop-zone-active');
+    const files = e.dataTransfer.files;
+    if (!files || files.length !== 1) {
+      alert('Bitte genau eine Datei ablegen.');
+      return;
+    }
+    if (!isYamlFile(files[0])) {
+      alert('Bitte eine .yaml- oder .yml-Datei ablegen.');
+      return;
+    }
+    loadSurveyFile(files[0]);
+  });
+}
+
+// ---- Init ----
+document.addEventListener('DOMContentLoaded', () => {
+  // ls-Check
+  lsGet('__test__');
+  if (!lsOk) document.getElementById('ls-banner').style.display = 'block';
+
+  document.getElementById('btn-help').addEventListener('click', () => {
+    const box = document.getElementById('help-box');
+    box.style.display = box.style.display === 'block' ? 'none' : 'block';
+  });
+
+  if (SURVEY) {
+    // Eingebetteter Client (HTML-Export, buildClientHtml() im Manager):
+    // Umfrage bereits vorhanden — unverändert direkt in die
+    // Fragebogen-Ansicht starten, keine Start-Ansicht.
+    applySurveyMeta();
+    renderQuestions();
+    loadAnswers();
+  } else {
+    // Gehosteter Client (build.py → client/index.html, SURVEY = null):
+    // nur Beschreibung + Datei-Import/Drag-&-Drop anzeigen, bis eine
+    // Umfrage erfolgreich importiert wurde (siehe loadSurveyFile()).
+    document.getElementById('survey-view').style.display = 'none';
+    document.getElementById('start-view').style.display = '';
+    wireStartView();
+  }
+
+  document.getElementById('btn-export').addEventListener('click', exportAnswers);
+
+  document.getElementById('import-answers').addEventListener('change', function() {
+    if (this.files[0]) importAnswers(this.files[0]);
+    this.value = '';
+  });
+
+  // Auto-Save auf Metafelder
+  ['meta-befragte', 'meta-version', 'meta-notizen'].forEach(id => {
+    document.getElementById(id).addEventListener('input', saveAnswers);
+  });
+
+  document.getElementById('btn-clear-survey').addEventListener('click', () => {
+    if (!confirm('Alle gespeicherten Antworten zu dieser Umfrage löschen?')) return;
+    lsKeys().filter(k => k.startsWith(LS_PREFIX)).forEach(k => lsRemove(k));
+    location.reload();
+  });
+
+  document.getElementById('btn-clear-all').addEventListener('click', () => {
+    if (!confirm('ALLE Umfrage-Client-Daten aus dem Browser-Speicher löschen?')) return;
+    lsKeys().filter(k => k.startsWith('umfrageClient.')).forEach(k => lsRemove(k));
+    location.reload();
+  });
+
+  // Minimaler Ausweg aus einer bereits geladenen Umfrage zurück zur
+  // Start-Ansicht — nur im gehosteten Client relevant (der per HTML
+  // exportierte Client kennt nur "seine" eingebettete Umfrage). Da der
+  // gehostete Client als statische Seite immer mit SURVEY = null neu
+  // lädt, genügt ein einfacher Seiten-Reload; bereits gespeicherte
+  // Antworten bleiben UUID-scoped in localStorage erhalten.
+  if (HOSTED_MODE) {
+    document.getElementById('btn-load-other').addEventListener('click', () => {
+      location.reload();
+    });
+  }
+});
+</script>
+</body>
+</html>

@@ -22,7 +22,7 @@ Umfragen selbst lassen sich außerdem über einen einzigen YAML-Export sichern/�
 
 ## Daten & Speicherung
 
-Alle Daten (Umfragen, Fragen, importierte Antworten) werden ausschließlich im **lokalen Speicher (localStorage) des Browsers** gehalten — es findet keine Übertragung an einen Server statt. Ist localStorage nicht verfügbar (z. B. bei manchen Browser-Konfigurationen beim Öffnen über `file://`), zeigt die Anwendung einen Warnhinweis an; in diesem Fall werden Eingaben nicht dauerhaft gespeichert.
+Alle Daten (Umfragen, Fragen, importierte Antworten) werden ausschließlich im **lokalen Speicher (localStorage) des Browsers** gehalten — es findet keine Übertragung an einen Server statt. Alle Anwendungskomponenten bieten die Möglichkeit die gespeicherten Daten aus dem lokalen Speicher zu löschen. Ist localStorage nicht verfügbar (z. B. bei manchen Browser-Konfigurationen beim Öffnen über `file://`), zeigt die Anwendung einen Warnhinweis an; in diesem Fall werden Eingaben nicht dauerhaft gespeichert.
 
 ## Sicherheit
 

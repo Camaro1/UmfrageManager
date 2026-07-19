@@ -1,35 +1,48 @@
 #!/usr/bin/env python3
 """Build script for Umfrage-Manager.
 
-Assembles UmfrageManager.html (repo root, committed) from the sources under
-src/. Pure Python 3 standard library, no dependencies (no Node, no pip
-packages) — see plan-gitHubPageClient.md, "Build-Step (entschieden;
-Struktur)" and CLAUDE.md.
+Assembles UmfrageManager.html (repo root, committed) and the standalone
+hosted-client artifact (client/index.html, repo root, committed) from the
+sources under src/. Pure Python 3 standard library, no dependencies (no
+Node, no pip packages) — see plan-gitHubPageClient.md, "Build-Step
+(entschieden; Struktur)" and CLAUDE.md.
 
 What it does:
   1. Reads src/shared/{js-yaml.min.js, common.js, format.js, base.css},
      src/manager/{manager.html, manager.js, manager.css} and src/client/
      {client.html, client.js, client.css}.
-  2. Builds the standalone client bundle (CLIENT_HTML_TEMPLATE and
-     CLIENT_APP_SCRIPT_SRC) as JS string constants and prepends them to
-     manager.js, so buildClientHtml() in the manager no longer duplicates
-     the client's HTML/CSS/JS by hand — it just fills in the runtime-only
-     placeholders (survey JSON, CSP hashes, escaped title/label).
+  2. build_client_bundle() assembles the client's HTML template and app
+     script from src/client/ + src/shared/ exactly once; both output
+     artifacts below are built from this single shared function, so the
+     client's HTML/CSS/JS is never duplicated by hand:
+       - build_manager_html() embeds that bundle as two JS string
+         constants (CLIENT_HTML_TEMPLATE, CLIENT_APP_SCRIPT_SRC) inside
+         the manager's own script, so buildClientHtml() in the manager
+         only fills in the runtime-only placeholders (survey JSON, CSP
+         hashes, escaped title/label) when a user exports an HTML client.
+       - build_hosted_client_html() fills the same bundle's {{SURVEY_JSON}}
+         placeholder with the literal `null` (no embedded survey — see
+         src/client/client.js for the SURVEY === null "hosted" mode) and
+         generic placeholder title/label text, to produce a standalone,
+         statically hostable client/index.html.
   3. Concatenates src/shared/common.js + the client-bundle constants +
      src/manager/manager.js into the single "app logic" <script> block,
      and src/shared/base.css + src/manager/manager.css into manager's
      <style> block.
   4. Computes the SHA-256 (base64) hash of the exact text content of the
      two <script> blocks (js-yaml, app logic) and injects them into the
-     CSP <meta> tag — this replaces the manual hash-recomputation step
-     that CLAUDE.md used to document.
-  5. Writes the result to UmfrageManager.html at the repo root.
+     CSP <meta> tag of *each* generated document (manager and hosted
+     client) — this replaces the manual hash-recomputation step that
+     CLAUDE.md used to document. There is no manual hash-maintenance step
+     for the hosted client either: it is recomputed on every build.
+  5. Writes the results to UmfrageManager.html and client/index.html at
+     the repo root.
 
 Usage:
     python3 build.py
 
 Re-run this after any change under src/ and commit the regenerated
-UmfrageManager.html together with the source change.
+UmfrageManager.html and client/index.html together with the source change.
 """
 import base64
 import hashlib
@@ -149,11 +162,62 @@ def build_manager_html() -> str:
     return manager_html
 
 
+def build_hosted_client_html() -> str:
+    """Builds the standalone, centrally-hostable client artifact
+    (client/index.html): the same src/client/ + src/shared/ bundle used
+    for the HTML-export client (build_client_bundle(), shared, not
+    duplicated), but with SURVEY = null (see src/client/client.js) and
+    generic placeholder title/label text, since no survey is known at
+    build time — the respondent-facing "hosted" mode instead shows a
+    start view (description + file import/drag-and-drop) until a survey
+    YAML is imported at runtime."""
+    client_html_template, client_app_script_src = build_client_bundle()
+    jsyaml_src = read("shared/js-yaml.min.js")
+
+    app_script = client_app_script_src.replace("{{SURVEY_JSON}}", "null")
+
+    # Generic placeholders: no survey is embedded, so there is no real
+    # title/bezeichner_label yet. client.js sets both at runtime via
+    # textContent once a survey is imported (applySurveyMeta()).
+    title = "Umfrage-Client"
+    befragter_label = "Hochschule"
+
+    html = client_html_template
+    html = html.replace("{{TITLE}}", title)
+    html = html.replace("{{BEFRAGTER_LABEL}}", befragter_label)
+    html = html.replace("{{JSYAML}}", jsyaml_src)
+    html = html.replace("{{APP_SCRIPT}}", app_script)
+
+    # Same hash-based CSP technique as build_manager_html(): computed at
+    # build time (not runtime, since this is a static artifact with no
+    # manager UI to run crypto.subtle.digest() at export time) from the
+    # exact assembled <script> block content.
+    jsyaml_hash = sha256_base64(extract_script_content(html, 0))
+    first_end = html.index("</script>") + len("</script>")
+    app_hash = sha256_base64(extract_script_content(html, first_end))
+    csp = (
+        "default-src 'none'; "
+        f"script-src 'sha256-{jsyaml_hash}' 'sha256-{app_hash}'; "
+        "style-src 'unsafe-inline'; img-src 'self' data:; object-src 'none'; "
+        "base-uri 'none'; form-action 'none'; connect-src 'none'"
+    )
+    html = html.replace("{{CSP}}", csp, 1)
+
+    return html
+
+
 def main() -> None:
-    output = build_manager_html()
-    out_path = ROOT / "UmfrageManager.html"
-    out_path.write_text(output, encoding="utf-8", newline="\n")
-    print(f"Wrote {out_path} ({len(output)} bytes)")
+    manager_output = build_manager_html()
+    manager_out_path = ROOT / "UmfrageManager.html"
+    manager_out_path.write_text(manager_output, encoding="utf-8", newline="\n")
+    print(f"Wrote {manager_out_path} ({len(manager_output)} bytes)")
+
+    client_output = build_hosted_client_html()
+    client_dir = ROOT / "client"
+    client_dir.mkdir(exist_ok=True)
+    client_out_path = client_dir / "index.html"
+    client_out_path.write_text(client_output, encoding="utf-8", newline="\n")
+    print(f"Wrote {client_out_path} ({len(client_output)} bytes)")
 
 
 if __name__ == "__main__":

@@ -28,7 +28,7 @@
     <p style="margin-top:0.5rem;"><strong>Pflichtfelder</strong> sind mit <span style="color:var(--danger);">*</span> markiert und müssen ausgefüllt sein, bevor Sie exportieren können.</p>
     <p style="margin-top:0.5rem;"><strong>Wie funktioniert es?</strong></p>
     <ul>
-      <li>Füllen Sie das Pflichtfeld ({{BEFRAGTER_LABEL}}) aus.</li>
+      <li>Füllen Sie das Pflichtfeld (<span id="help-befragter-label">{{BEFRAGTER_LABEL}}</span>) aus.</li>
       <li>Beantworten Sie alle Fragen.</li>
       <li>Klicken Sie auf <strong>Antworten exportieren (YAML)</strong> — eine YAML-Datei wird heruntergeladen.</li>
       <li>Senden Sie diese YAML-Datei zurück an die Person, die Ihnen den Fragebogen geschickt hat.</li>
@@ -36,35 +36,61 @@
     <p style="margin-top:0.5rem;"><strong>Ihre Antworten</strong> werden automatisch in Ihrem Browser gespeichert (localStorage), solange Sie den Fragebogen nicht schließen. Sie können eine zuvor exportierte (auch teilweise ausgefüllte) YAML-Datei wieder importieren, um an ihr weiterzuarbeiten — das Versionsfeld wird dabei automatisch um eins erhöht, ist aber nur ein Indiz und kein Echtheitsnachweis.</p>
   </div>
 
-  <div class="card">
-    <div class="card-title">Allgemeine Angaben</div>
-    <div class="form-group">
-      <label for="meta-befragte" class="required-label">{{BEFRAGTER_LABEL}}</label>
-      <input type="text" id="meta-befragte" placeholder="{{BEFRAGTER_LABEL}}">
+  <!-- Start-Ansicht: nur beim zentral gehosteten Client (kein eingebettetes
+       Survey) sichtbar — siehe client.js, wo dies anhand von SURVEY === null
+       entschieden wird. Beim per HTML exportierten Client bleibt dieser
+       Block per Default (s. client.css) verborgen, sodass unverändert
+       direkt die Fragebogen-Ansicht erscheint. -->
+  <div id="start-view">
+    <div class="card">
+      <div class="card-title">Umfrage-Client</div>
+      <p>Dieser zentrale Umfrage-Client hat aktuell noch keine Umfrage geladen. Importieren Sie eine <strong>.yaml</strong>-Datei, die Sie von der Umfrage-Ersteller:in oder einer/einem Kolleg:in erhalten haben.</p>
+      <p style="margin-top:0.5rem;">Nach dem Import erscheint der Fragebogen und Sie können ihn ausfüllen. Ihre Antworten werden anschließend in diesem Browser gespeichert; die YAML-Datei können Sie danach wieder exportieren und weitergeben.</p>
     </div>
-    <div class="form-group">
-      <label for="meta-version">Version (optional, wird beim Import automatisch erhöht)</label>
-      <input type="text" id="meta-version" placeholder="0">
+    <div class="card">
+      <div id="drop-zone" class="drop-zone">
+        <p>YAML-Datei hierher ziehen</p>
+        <p>— oder —</p>
+        <label class="btn btn-primary" style="cursor:pointer;">
+          Datei auswählen
+          <input type="file" accept=".yaml,.yml" style="display:none;" id="start-import-file">
+        </label>
+      </div>
     </div>
   </div>
 
-  <div id="questions-container"></div>
+  <div id="survey-view">
+    <div class="card">
+      <div class="card-title">Allgemeine Angaben</div>
+      <div class="form-group">
+        <label id="label-befragte" for="meta-befragte" class="required-label">{{BEFRAGTER_LABEL}}</label>
+        <input type="text" id="meta-befragte" placeholder="{{BEFRAGTER_LABEL}}">
+      </div>
+      <div class="form-group">
+        <label for="meta-version">Version (optional, wird beim Import automatisch erhöht)</label>
+        <input type="text" id="meta-version" placeholder="0">
+      </div>
+    </div>
 
-  <div class="card">
-    <div class="card-title">Notizen &amp; Anmerkungen</div>
-    <textarea id="meta-notizen" rows="4" placeholder="Freitext für allgemeine Anmerkungen…" style="resize:vertical;"></textarea>
-  </div>
+    <div id="questions-container"></div>
 
-  <div class="card">
-    <div class="card-title">Aktionen</div>
-    <div class="btn-bar">
-      <button class="btn btn-primary" id="btn-export">Antworten exportieren (YAML)</button>
-      <label class="btn" style="cursor:pointer;">
-        Antworten importieren
-        <input type="file" accept=".yaml,.yml" style="display:none;" id="import-answers">
-      </label>
-      <button class="btn btn-danger" id="btn-clear-survey">Daten dieser Umfrage löschen</button>
-      <button class="btn btn-danger" id="btn-clear-all">Alle Client-Daten löschen</button>
+    <div class="card">
+      <div class="card-title">Notizen &amp; Anmerkungen</div>
+      <textarea id="meta-notizen" rows="4" placeholder="Freitext für allgemeine Anmerkungen…" style="resize:vertical;"></textarea>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Aktionen</div>
+      <div class="btn-bar">
+        <button class="btn btn-primary" id="btn-export">Antworten exportieren (YAML)</button>
+        <label class="btn" style="cursor:pointer;">
+          Antworten importieren
+          <input type="file" accept=".yaml,.yml" style="display:none;" id="import-answers">
+        </label>
+        <button class="btn btn-danger" id="btn-clear-survey">Daten dieser Umfrage löschen</button>
+        <button class="btn btn-danger" id="btn-clear-all">Alle Client-Daten löschen</button>
+        <button class="btn" id="btn-load-other" style="display:none;">Andere Umfrage laden</button>
+      </div>
     </div>
   </div>
 </div>

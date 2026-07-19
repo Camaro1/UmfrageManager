@@ -8,6 +8,42 @@ Die hier genannten Versionen entsprechen `APP_VERSION` in `UmfrageManager.html`.
 
 ## [Unveröffentlicht]
 
+## [2.1.0] – 2026-07-19
+
+### Hinzugefügt (Added)
+
+- **Gehosteter Client (`client/index.html`).** Neuer, aus `src/client/` +
+  `src/shared/` generierter Build-Ausgabeordner `client/` mit einer
+  eigenständigen, zentral hostbaren Variante des Umfrage-Clients ohne
+  eingebettete Umfrage. Beim Öffnen zeigt sie zunächst nur eine kurze
+  Bedienungsanleitung, einen Datei-Import und eine Drag-&-Drop-Fläche für
+  `.yaml`/`.yml`-Dateien; erst nach erfolgreichem Import einer
+  Umfrage-Definition oder einer (auch teilweise ausgefüllten)
+  Kolleg:innen-Antwortdatei erscheint der Fragebogen. Der per HTML
+  exportierte Client (`buildClientHtml()`) verhält sich unverändert und
+  startet weiterhin sofort mit der bereits eingebetteten Umfrage.
+  `build.py` erzeugt beide Varianten aus derselben Client-Quelle und
+  berechnet die CSP-Hashes für `client/index.html` automatisch beim Build
+  (kein manueller Pflegeschritt). Diese Änderung liefert nur den
+  Build-Artefakt und die Client-Logik; das tatsächliche Hosting/Deployment
+  auf GitHub Pages sowie eine Anzeige der kanonischen Client-URL im
+  Manager folgen in einer separaten Phase.
+- Im gehosteten Client eine minimale „Andere Umfrage laden"-Schaltfläche,
+  um nach dem Import einer Umfrage zur Start-Ansicht zurückzukehren
+  (einfacher Seiten-Reload; gespeicherte Antworten bleiben je Umfrage
+  UUID-gebunden erhalten).
+
+### Sicherheit (Security)
+
+- **Dokument-weites `preventDefault` für Drag-&-Drop-Import.** Ohne dies
+  hätte ein Datei-Drop, der die Drop-Fläche nur knapp verfehlt, dazu
+  geführt, dass der Browser die abgelegte YAML-Datei als Rohtext-Seite
+  navigiert/anzeigt, statt sie kontrolliert zu importieren.
+- **Laufzeit-`textContent`-Rendering für Titel/Frist/Befragten-Label im
+  gehosteten Client**, da dort — anders als beim HTML-Export — keine
+  Export-Zeit-Escaping-Stufe existiert; alle diese Werte stammen zur
+  Laufzeit aus nicht vertrauenswürdigem, importiertem YAML.
+
 ## [2.0.0] – 2026-07-19
 
 ### Hinzugefügt (Added)
