@@ -20,6 +20,16 @@ Die Anwendung besteht aus einer einzigen HTML-Datei (`UmfrageManager.html`), die
 
 Umfragen selbst lassen sich außerdem über einen einzigen YAML-Export sichern/übertragen — dieselbe Datei dient zugleich als Eingabe für den HTML-Client-Export. Manager-Definitions-Export, Manager→Client-Übergabe und Client-Antwort-Export/-Import verwenden alle dasselbe YAML-Format (Details siehe [Getting Started](docs/getting-started.md)).
 
+## Gehosteter Client (Weitergabe-Workflow)
+
+Neben dem HTML-Client-Export gibt es einen zweiten Weg, eine Umfrage an Befragte zu verteilen: den zentral gehosteten Client unter der festen, per GitHub Pages ausgelieferten Adresse
+
+> **https://camaro1.github.io/UmfrageManager/**
+
+Dieser Client wird direkt aus diesem Repository gebaut und automatisch per GitHub-Actions-Workflow (`.github/workflows/pages.yml`) veröffentlicht — es ist keine eigene Installation oder ein eigener Server nötig. Statt jede/n Befragte/n mit einer eigenen HTML-Datei zu versorgen, exportieren Sie im Manager nur die eine YAML-Datei ("Als YAML exportieren"); alle Befragten öffnen dieselbe Adresse in ihrem Browser und importieren dort diese Datei (Datei-Auswahl oder Drag & Drop). Das eignet sich besonders für die **Weitergabe-Kette mehrerer Befragter**: Die erste Person füllt ihre Antworten aus, exportiert die YAML-Datei und reicht sie an die nächste Person weiter, die dieselbe Adresse erneut öffnet, die erhaltene Datei importiert und weiter ausfüllt — und so weiter, bis die Datei am Ende an die Umfrage-Ersteller:in zurückgeht und dort wie gewohnt im Reiter "Auswertung" importiert wird. Die kanonische URL ist im Manager auch im Hilfetext (?-Button im Header) und im Hinweis nach dem YAML-Export kopierbar hinterlegt.
+
+> **Hinweis für Betreiber:innen des Repositories:** Damit der Workflow tatsächlich ausliefert, muss einmalig unter *Settings → Pages* die Quelle auf **„GitHub Actions"** gestellt und **„Enforce HTTPS"** aktiviert werden. Das ist ein manueller, sicherheitsrelevanter Einrichtungsschritt mit Repository-Admin-Rechten, den kein Workflow automatisch vornehmen kann oder sollte.
+
 ## Daten & Speicherung
 
 Alle Daten (Umfragen, Fragen, importierte Antworten) werden ausschließlich im **lokalen Speicher (localStorage) des Browsers** gehalten — es findet keine Übertragung an einen Server statt. Alle Anwendungskomponenten bieten die Möglichkeit die gespeicherten Daten aus dem lokalen Speicher zu löschen. Ist localStorage nicht verfügbar (z. B. bei manchen Browser-Konfigurationen beim Öffnen über `file://`), zeigt die Anwendung einen Warnhinweis an; in diesem Fall werden Eingaben nicht dauerhaft gespeichert.
@@ -38,6 +48,15 @@ Aktueller Sicherheitsstatus:
 - **Kein Schema-Abgleich beim YAML-Import.** Importierte YAML-Dateien (Umfragen wie Antworten) werden strukturell vertraut, ohne formale Schema-Validierung. Die verwendete YAML-Bibliothek verhindert zwar die Ausführung von beliebigem Code beim Parsen, fehlerhafte Dateien können aber zu Laufzeitfehlern führen.
 - **Alt-Format- und Fremd-Umfrage-Erkennung beim Import (ab 2.0.0).** Dateien, die noch das vor Version 2.0.0 verwendete Format tragen (alte Feldnamen bzw. `app_version` unterhalb von 2.0.0), werden mit einer klaren Fehlermeldung abgelehnt statt stillschweigend falsch interpretiert zu werden. Beim Import von Antwort-Dateien in den Manager wird zusätzlich geprüft, ob die Datei überhaupt zur aktuell geöffneten Umfrage gehört (UUID-Abgleich) — Dateien einer anderen Umfrage werden nicht in die Auswertung übernommen.
 - **Schutz vor Formula Injection im CSV-Export.** Werte aus importierten Antwort-Dateien gelten als nicht vertrauenswürdig, da sie von Befragten stammen. Beim CSV-Export der Auswertung wird jede Zelle (inklusive der aus Antwortdateien übernommenen Fragetexte in der Kopfzeile) geprüft: Beginnt ein Wert mit einem Zeichen, das von Tabellenkalkulationsprogrammen (Excel, LibreOffice, Google Sheets) als Formelanfang interpretiert werden könnte (`=`, `+`, `-`, `@`, Tab, Wagenrücklauf), wird ihm ein Apostroph vorangestellt, damit er als reiner Text angezeigt und nicht ausgeführt wird.
+
+**Zusätzliche Aspekte des gehosteten Clients** (`https://camaro1.github.io/UmfrageManager/`): Der Umfrage-Manager selbst und der per HTML exportierte Client bleiben vollständig offline-fähig; nur der gehostete Client hängt zusätzlich von einem externen Dienst ab. Das bringt eigene, bewusst akzeptierte Restrisiken mit sich:
+
+- **Look-alike-Phishing.** Die kanonische URL ist der Vertrauensanker dieses Wegs — eine ähnlich aussehende, aber gefälschte Adresse (Tippfehler-Domain, anderer Nutzername) wäre für Befragte nicht ohne Weiteres von der echten zu unterscheiden. Mitigation: Nur die von der Umfrage-Ersteller:in kommunizierte URL verwenden und die Adresszeile des Browsers vor dem Import einer Datei prüfen.
+- **Neue zentrale Kompromittierungsstelle.** Anders als beim HTML-Export (jede Datei ist unabhängig) liefert eine Kompromittierung des GitHub-Repositories oder -Accounts allen Befragten denselben, potenziell bösartigen Client aus. Dem wird auf GitHub-Seite mit 2FA und Branch-Protection begegnet — das liegt in der Verantwortung der Repository-Eigentümer:in und wird nicht durch den Code selbst erzwungen.
+- **Geteilter Origin.** Alle GitHub-Pages-Projektseiten desselben Accounts (`camaro1.github.io/…`) teilen sich einen Origin; der clientseitig genutzte `localStorage` wäre technisch von jeder anderen, unter demselben Account gehosteten Seite lesbar. Mitigation: Unter diesem GitHub-Account keine weiteren, nicht vertrauenswürdigen Seiten hosten.
+- **Verfügbarkeit hängt von GitHub ab.** Der gehostete Client ist — im Unterschied zum Manager und zum HTML-Export-Client — nur erreichbar, solange GitHub Pages verfügbar ist; das ist eine bewusst eingegangene Abhängigkeit von einem externen Hosting-Dienst, nur für diesen einen Verteilungsweg.
+
+Eine formale, ausführliche Bedrohungsmodell-Aktualisierung für den gehosteten Client ist als separates, noch ausstehendes Vorhaben geplant (siehe Hinweis in [`docs/security/threat-model.md`](docs/security/threat-model.md)).
 
 ### Bedrohungsmodell (Threat Model)
 

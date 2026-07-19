@@ -15,11 +15,30 @@
 <body>
   <header>
     <h1>Umfrage-Manager</h1>
-    <span id="app-version-display"></span>
+    <div style="display:flex; align-items:center; gap:0.75rem;">
+      <span id="app-version-display"></span>
+      <button class="btn" style="background:rgba(255,255,255,0.15); border-color:rgba(255,255,255,0.3); color:white;" id="btn-help" title="Hilfe">?</button>
+    </div>
   </header>
 
   <div id="ls-banner">
     ⚠️ localStorage ist in dieser Browser-Konfiguration nicht verfügbar (file://-Protokoll). Eingaben werden nicht gespeichert.
+  </div>
+
+  <div class="help-box" id="help-box" style="margin:1rem 1.5rem 0;">
+    <h3>Umfrage-Manager — Hilfe</h3>
+    <p><strong>Was ist das?</strong> Der Umfrage-Manager ist eine lokal laufende Anwendung zum Erstellen, Verteilen und Auswerten von Umfragen — ganz ohne eigenen Server. Sie legen hier Umfragen an, verteilen sie an Befragte und werten die zurückerhaltenen Antworten hier aus.</p>
+    <p style="margin-top:0.5rem;"><strong>Zwei Wege, eine Umfrage zu verteilen:</strong></p>
+    <ul>
+      <li><strong>HTML-Client</strong> ("Als HTML exportieren"): erzeugt eine eigenständige HTML-Datei pro Befragten, die vollständig offline funktioniert. Geeignet, um die Datei direkt (z.&nbsp;B. per E-Mail) an einzelne Personen zu verteilen.</li>
+      <li><strong>Gehosteter YAML-Client</strong> ("Als YAML exportieren"): Sie geben nur die YAML-Datei weiter; alle Befragten öffnen stattdessen dieselbe, feste Client-Adresse (unten) im Browser und importieren dort die Datei. Praktisch, wenn mehrere Befragte dieselbe Datei nacheinander ausfüllen und weiterreichen — dann benötigt nicht jede Person eine eigene HTML-Datei.</li>
+    </ul>
+    <p style="margin-top:0.5rem;"><strong>Kanonische Client-URL</strong> (an Befragte weitergeben, Adresszeile beim Öffnen prüfen):</p>
+    <div style="display:flex; gap:0.5rem; margin-top:0.25rem;">
+      <input type="text" id="help-client-url" readonly style="flex:1;">
+      <button class="btn" id="btn-copy-help-url">Kopieren</button>
+    </div>
+    <p style="margin-top:0.75rem;">Ausführliche Anleitung mit allen Arbeitsabläufen: <a id="help-getting-started-link" href="#" target="_blank" rel="noopener">docs/getting-started.md (GitHub)</a>.</p>
   </div>
 
   <div class="app-body">
@@ -142,6 +161,24 @@
         <button class="btn" id="modal-conflict-overwrite">Überschreiben</button>
         <button class="btn btn-primary" id="modal-conflict-new-uuid">Neue UUID vergeben</button>
         <button class="btn" id="modal-conflict-cancel">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export-Hinweis: gehosteter Client -->
+  <div id="modal-export-info" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <h3>YAML-Datei exportiert</h3>
+      <p>Die Datei wurde heruntergeladen. Sie dient zugleich als Eingabedatei für den zentral gehosteten Umfrage-Client — Befragte öffnen die folgende Adresse in ihrem Browser und importieren dort diese Datei:</p>
+      <div class="form-group">
+        <label for="export-client-url">Gehosteter Client</label>
+        <div style="display:flex; gap:0.5rem;">
+          <input type="text" id="export-client-url" readonly>
+          <button class="btn" id="btn-copy-export-url">Kopieren</button>
+        </div>
+      </div>
+      <div class="btn-bar">
+        <button class="btn btn-primary" id="modal-export-info-close">Schließen</button>
       </div>
     </div>
   </div>

@@ -8,6 +8,42 @@ Die hier genannten Versionen entsprechen `APP_VERSION` in `UmfrageManager.html`.
 
 ## [Unveröffentlicht]
 
+## [2.2.0] – 2026-07-19
+
+### Hinzugefügt (Added)
+
+- **Deploy-Workflow für den gehosteten Client (`.github/workflows/pages.yml`).**
+  Baut bei jedem Push auf `master` (sowie manuell über `workflow_dispatch`)
+  mit `python3 build.py` und veröffentlicht den Ordner `client/` per
+  GitHub Actions als GitHub-Pages-Seite unter der kanonischen Adresse
+  `https://camaro1.github.io/UmfrageManager/`. Ein Freshness-Check
+  (`git diff --exit-code` auf `UmfrageManager.html` und `client/index.html`)
+  lässt den Workflow fehlschlagen, falls Quelländerungen unter `src/`
+  committet wurden, ohne die generierten Artefakte neu zu bauen und
+  mitzucommitten. Einmaliger manueller Schritt für Repository-Eigentümer:innen
+  (kann kein Workflow automatisch vornehmen): unter *Settings → Pages* die
+  Quelle auf „GitHub Actions" stellen und „Enforce HTTPS" aktivieren.
+- **Kanonische Client-URL im Manager.** Neue zentrale Konstante
+  `CANONICAL_CLIENT_URL` (`src/manager/manager.js`) wird jetzt an zwei
+  Stellen angezeigt und ist dort kopierbar: in einem neuen Hinweis-Dialog
+  direkt nach „Als YAML exportieren" sowie in der neuen Hilfe-Box.
+- **Neue Hilfe-Box im Manager** (`?`-Button im Header, analog zum
+  bestehenden Hilfe-Button des Clients): kurze Beschreibung der Anwendung,
+  Gegenüberstellung von HTML-Client- und gehostetem YAML-Client-Export
+  (was es ist, wann welcher Weg sinnvoll ist), die kopierbare kanonische
+  Client-URL sowie ein absoluter GitHub-Link auf
+  `docs/getting-started.md` (bewusst absolut, da `UmfrageManager.html`
+  typischerweise von einem lokalen `file://`-Pfad aus geöffnet wird, wo ein
+  relativer Link ins Leere liefe).
+- README und `docs/getting-started.md` um den gehosteten
+  Weitergabe-Workflow (mehrere Befragte reichen dieselbe YAML-Datei über
+  die feste Client-Adresse weiter) sowie einen Sicherheits-Absatz zu den
+  Restrisiken des gehosteten Clients ergänzt (Look-alike-Phishing auf die
+  kanonische URL, Repository-/Account-Kompromittierung als neue zentrale
+  Angriffsfläche, geteilter `*.github.io`-Origin für `localStorage`,
+  Abhängigkeit von der Verfügbarkeit von GitHub Pages). Eine formale
+  Bedrohungsmodell-Aktualisierung dazu ist als separates Vorhaben geplant.
+
 ## [2.1.0] – 2026-07-19
 
 ### Hinzugefügt (Added)

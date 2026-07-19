@@ -21,8 +21,9 @@ Der Ablauf kennt zwei Rollen und drei Dateiarten:
 
 | Datei | Zweck | Format |
 |-------|-------|--------|
-| Umfrage-YAML | Sicherung/Transport einer Umfrage **und** Eingabedatei für den Client-Export | YAML |
-| Umfrage-Client | eigenständige Ausfüll-Datei für Teilnehmende | HTML |
+| Umfrage-YAML | Sicherung/Transport einer Umfrage **und** Eingabedatei für den HTML-Client-Export **und** Eingabedatei für den gehosteten Client | YAML |
+| Umfrage-Client (HTML) | eigenständige, per Datei verteilte Ausfüll-Datei für Teilnehmende | HTML |
+| Gehosteter Client | dieselbe Ausfüll-Logik unter einer festen, zentral gehosteten Adresse (`https://camaro1.github.io/UmfrageManager/`); Teilnehmende importieren dort die Umfrage-YAML statt eine eigene Datei zu erhalten | — (Webseite) |
 | Antwortdatei | eine ausgefüllte Antwort eines/einer Teilnehmenden | YAML |
 
 Seit Version 2.0.0 verwenden alle drei YAML-Austauschpunkte (Umfrage-Export/-Import im
@@ -75,6 +76,12 @@ YAML-Export sichern oder auf einen anderen Rechner übertragen (siehe
 
 ## Workflow 2: Client an Teilnehmende verteilen
 
+Es gibt zwei alternative Wege, denselben Fragebogen an Teilnehmende zu bringen — die
+YAML-Datei bleibt in beiden Fällen dieselbe (Einheitsformat, siehe „Rollen und Dateien"
+oben).
+
+**Weg A — HTML-Client (eine Datei pro Person):**
+
 1. In der Umfrage die Funktion **als HTML-Client exportieren** wählen. Es entsteht eine
    zweite, **eigenständige** HTML-Datei, die die Umfrage vollständig enthält.
 2. Diese Datei an die Teilnehmenden verteilen (z. B. per Dateiablage oder E-Mail — siehe
@@ -83,9 +90,28 @@ YAML-Export sichern oder auf einen anderen Rechner übertragen (siehe
 Die Client-Datei benötigt weder Server noch Internetverbindung; sie läuft direkt im
 Browser der Teilnehmenden.
 
+**Weg B — gehosteter Client (eine feste Adresse für alle):**
+
+1. Im Editor stattdessen **„Als YAML exportieren"** wählen — es entsteht die eine
+   Umfrage-YAML-Datei.
+2. Diese Datei an die (erste) teilnehmende Person weitergeben, zusammen mit der
+   kanonischen Client-Adresse **`https://camaro1.github.io/UmfrageManager/`** (auch
+   kopierbar im Manager selbst hinterlegt: Hilfetext über den `?`-Button im Header sowie
+   im Hinweis-Dialog direkt nach dem YAML-Export).
+3. Alle Teilnehmenden öffnen dieselbe Adresse in ihrem Browser (statt eine eigene
+   HTML-Datei zu erhalten) und importieren dort die YAML-Datei per Datei-Auswahl oder
+   Drag & Drop.
+
+Weg B eignet sich besonders für die **Weitergabe-Kette mehrerer Befragter** (siehe
+Workflow 3): Es muss nicht für jede Person eine eigene HTML-Datei erzeugt und verteilt
+werden — alle nutzen dieselbe, feste Adresse. Prüfen Sie vor dem Import die Adresszeile
+des Browsers, um Look-alike-Phishing-Adressen auszuschließen (siehe
+[README → Sicherheit](../README.md#sicherheit)).
+
 ## Workflow 3: Teilnehmende füllen den Client aus
 
-1. Teilnehmende öffnen die erhaltene Client-HTML-Datei im Browser.
+1. Teilnehmende öffnen entweder die erhaltene Client-HTML-Datei (Weg A) oder die
+   kanonische Client-Adresse und importieren dort die erhaltene YAML-Datei (Weg B).
 2. Sie tragen ihren **Bezeichner** ein (Pflichtfeld) und beantworten die Fragen. Ein
    Versionsfeld ist ebenfalls vorhanden, aber optional — es ist nur ein Indiz für den
    Bearbeitungsstand und wird beim Import einer bereits begonnenen Antwortdatei (siehe
@@ -93,7 +119,9 @@ Browser der Teilnehmenden.
 3. Sie **exportieren ihre Antworten als YAML-Datei** und geben diese entweder an die
    nächste Person zum Weiterausfüllen oder an die Operator:in zurück. Eine bereits
    begonnene Antwortdatei lässt sich im Client auch wieder **importieren**, um an ihr
-   weiterzuarbeiten.
+   weiterzuarbeiten — bei Weg B öffnet die nächste Person dafür erneut dieselbe
+   Client-Adresse und importiert dort die von der vorherigen Person erhaltene Datei; ein
+   eigenes „Andere Umfrage laden" öffnet dort bei Bedarf wieder die Start-Ansicht.
 
 ## Workflow 4: Antworten auswerten
 

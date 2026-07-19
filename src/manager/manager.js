@@ -1,6 +1,39 @@
 // ============================================================
+// Gehosteter Client — zentrale Konstanten (Phase 3, siehe
+// plan-gitHubPageClient.md, Entscheidung 1 + 6). Beide Werte werden nur
+// hier definiert und überall sonst referenziert (Export-Dialog,
+// Hilfe-Box) statt als Literal dupliziert — ein späterer Wechsel auf eine
+// eigene Domain (Settings → Pages → Custom domain) bleibt so eine
+// Ein-Zeilen-Änderung. ACHTUNG: Diese URL ist der Vertrauensanker für
+// Befragte (Look-alike-Phishing-Risiko, siehe README "Sicherheit") — bei
+// einem Domain-Wechsel muss sie den Befragten aktiv neu kommuniziert
+// werden.
+// ============================================================
+const CANONICAL_CLIENT_URL = 'https://camaro1.github.io/UmfrageManager/';
+/** Absolute GitHub-URL (nicht relativ!): UmfrageManager.html wird typischerweise
+ * von einem lokalen file://-Pfad aus geöffnet, wo ein relativer Link auf
+ * docs/getting-started.md ins Leere liefe. */
+const GETTING_STARTED_URL = 'https://github.com/Camaro1/UmfrageManager/blob/master/docs/getting-started.md';
+
+// ============================================================
 // Hilfsfunktionen
 // ============================================================
+
+/** Kopiert Text in die Zwischenablage (Clipboard API). Erfordert keinen
+ * Netzwerkzugriff und ist daher mit `connect-src 'none'` in der CSP
+ * kompatibel. Bei fehlender/verweigerter Berechtigung (z.B. sehr alte
+ * Browser oder unsicherer Kontext) bleibt der Text zumindest sichtbar und
+ * per Hand markierbar im zugehörigen (readonly) Eingabefeld — kein
+ * zusätzlicher Fallback-Mechanismus nötig. */
+function copyTextToClipboard(text, btnEl) {
+  if (!navigator.clipboard || !navigator.clipboard.writeText) return;
+  navigator.clipboard.writeText(text).then(() => {
+    if (!btnEl) return;
+    const original = btnEl.textContent;
+    btnEl.textContent = 'Kopiert!';
+    setTimeout(() => { btnEl.textContent = original; }, 1500);
+  }).catch(() => { /* still visible/selectable in the input field */ });
+}
 
 /** Erzeugt eine RFC 4122 v4 UUID. Nutzt crypto.randomUUID() wenn verfügbar, sonst Fallback. */
 function generateUUID() {
@@ -429,6 +462,15 @@ function exportSurveyAsYaml() {
   const yml = jsyaml.dump(survey, { lineWidth: -1 });
   const name = sanitizeFilename(survey.bezeichnung || survey.uuid);
   triggerDownload(yml, `${name}.yaml`, 'application/x-yaml;charset=utf-8');
+  showExportInfoModal();
+}
+
+/** Post-Export-Hinweis (Phase 3): die soeben exportierte YAML-Datei dient
+ * auch als Eingabe für den zentral gehosteten Client — zeigt dessen
+ * kanonische URL (aus der zentralen Konstante, s.o.) kopierbar an. */
+function showExportInfoModal() {
+  document.getElementById('export-client-url').value = CANONICAL_CLIENT_URL;
+  document.getElementById('modal-export-info').style.display = 'flex';
 }
 
 function buildSurveyObject() {
@@ -968,10 +1010,29 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Modals bei Klick außerhalb schließen
-  ['modal-uuid-conflict', 'modal-delete'].forEach(id => {
+  ['modal-uuid-conflict', 'modal-delete', 'modal-export-info'].forEach(id => {
     document.getElementById(id).addEventListener('click', (e) => {
       if (e.target.id === id) document.getElementById(id).style.display = 'none';
     });
+  });
+
+  // Export-Hinweis-Dialog (gehosteter Client)
+  document.getElementById('modal-export-info-close').addEventListener('click', () => {
+    document.getElementById('modal-export-info').style.display = 'none';
+  });
+  document.getElementById('btn-copy-export-url').addEventListener('click', (e) => {
+    copyTextToClipboard(CANONICAL_CLIENT_URL, e.currentTarget);
+  });
+
+  // Hilfe-Box (?-Button im Header, Phase 3)
+  document.getElementById('btn-help').addEventListener('click', () => {
+    const box = document.getElementById('help-box');
+    box.style.display = box.style.display === 'block' ? 'none' : 'block';
+  });
+  document.getElementById('help-client-url').value = CANONICAL_CLIENT_URL;
+  document.getElementById('help-getting-started-link').href = GETTING_STARTED_URL;
+  document.getElementById('btn-copy-help-url').addEventListener('click', (e) => {
+    copyTextToClipboard(CANONICAL_CLIENT_URL, e.currentTarget);
   });
 
   // Sidebar initial rendern

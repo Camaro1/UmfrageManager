@@ -1,0 +1,78 @@
+name: Deploy hosted client to GitHub Pages
+
+# Publishes the generated client/ folder (the hosted-client artifact built
+# by build.py — see plan-gitHubPageClient.md Phase 3 and CLAUDE.md,
+# "Hosted client") to GitHub Pages at the canonical URL
+# https://camaro1.github.io/UmfrageManager/ (src/manager/manager.js,
+# CANONICAL_CLIENT_URL).
+#
+# One-time manual setup required from the repository owner (this workflow
+# cannot do it — it needs repo-admin access this CI job does not have):
+#   Settings -> Pages -> Source: "GitHub Actions"
+#   Settings -> Pages -> "Enforce HTTPS" enabled
+# Without that one-time step, this workflow will run and build correctly
+# but nothing will actually be served.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "src/**"
+      - "build.py"
+      - "client/**"
+      - "UmfrageManager.html"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one concurrent deployment; new pushes cancel any in-progress run,
+# but let a running deployment finish rather than being interrupted mid-flight.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Run build
+        run: python3 build.py
+
+      - name: Freshness check (fail if committed artifacts are stale)
+        # build.py is deterministic given src/; if this diff is non-empty,
+        # someone changed src/ without regenerating and committing
+        # UmfrageManager.html / client/index.html (see CLAUDE.md, Process
+        # instructions). Fail loudly instead of silently deploying a
+        # hosted client that doesn't match its own source.
+        run: git diff --exit-code -- UmfrageManager.html client/index.html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload client artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: client/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
