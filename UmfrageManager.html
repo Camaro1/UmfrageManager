@@ -4,7 +4,7 @@
      Licensed under the MIT License. See LICENSE file for details. -->
 <html lang="de">
 <head>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-S51VYUB9RDgsoGEjgOnzSUcCN6z2gSqFlIAEqhiO410=' 'sha256-7/S3ifkBJSkmHfKDRIRh6xPWf11JkqjGPniFaYqqRlo='; style-src 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; connect-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-S51VYUB9RDgsoGEjgOnzSUcCN6z2gSqFlIAEqhiO410=' 'sha256-fcO/GNKPIufmO+cnVcyZ2e8k3UiE+WXcMhaW4ryEjnc='; style-src 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; connect-src 'none'">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Umfrage-Manager</title>
@@ -791,7 +791,7 @@ label { font-size: 0.8125rem; font-weight: 500; color: var(--muted); }
        SURVEY === null um. #survey-view übernimmt hier das ehemals vom
        Flex-Container (.container) direkt bereitgestellte vertikale Gap
        zwischen seinen Kind-Karten, da es nun selbst ein Flex-Item ist. */
-    #start-view { display: none; flex-direction: column; gap: 1.25rem; }
+    #start-view { display: block; flex-direction: column; gap: 1.25rem; }
     #survey-view { display: flex; flex-direction: column; gap: 1.25rem; }
     .drop-zone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 2.5rem 1.5rem; text-align: center; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 0.5rem; transition: border-color 0.15s, background-color 0.15s; }
     .drop-zone-active { border-color: var(--primary); background: #eef2ff; }

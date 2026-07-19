@@ -60,7 +60,7 @@ label { font-size: 0.8125rem; font-weight: 500; color: var(--muted); }
        SURVEY === null um. #survey-view übernimmt hier das ehemals vom
        Flex-Container (.container) direkt bereitgestellte vertikale Gap
        zwischen seinen Kind-Karten, da es nun selbst ein Flex-Item ist. */
-    #start-view { display: none; flex-direction: column; gap: 1.25rem; }
+    #start-view { display: block; flex-direction: column; gap: 1.25rem; }
     #survey-view { display: flex; flex-direction: column; gap: 1.25rem; }
     .drop-zone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 2.5rem 1.5rem; text-align: center; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 0.5rem; transition: border-color 0.15s, background-color 0.15s; }
     .drop-zone-active { border-color: var(--primary); background: #eef2ff; }
