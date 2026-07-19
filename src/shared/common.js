@@ -22,7 +22,7 @@ function sanitizeFilename(str) {
 // ============================================================
 // App-Version
 // ============================================================
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '2.0.0';
 
 /** Parst eine "major.minor.patch"-Versionsnummer. */
 function parseVersion(v) {

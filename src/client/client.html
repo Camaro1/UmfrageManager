@@ -28,12 +28,12 @@
     <p style="margin-top:0.5rem;"><strong>Pflichtfelder</strong> sind mit <span style="color:var(--danger);">*</span> markiert und müssen ausgefüllt sein, bevor Sie exportieren können.</p>
     <p style="margin-top:0.5rem;"><strong>Wie funktioniert es?</strong></p>
     <ul>
-      <li>Füllen Sie die Pflichtfelder (Hochschule/Bezeichnung und Version) aus.</li>
+      <li>Füllen Sie das Pflichtfeld ({{BEFRAGTER_LABEL}}) aus.</li>
       <li>Beantworten Sie alle Fragen.</li>
       <li>Klicken Sie auf <strong>Antworten exportieren (YAML)</strong> — eine YAML-Datei wird heruntergeladen.</li>
       <li>Senden Sie diese YAML-Datei zurück an die Person, die Ihnen den Fragebogen geschickt hat.</li>
     </ul>
-    <p style="margin-top:0.5rem;"><strong>Ihre Antworten</strong> werden automatisch in Ihrem Browser gespeichert (localStorage), solange Sie den Fragebogen nicht schließen. Sie können einen vorherigen Export auch wieder importieren.</p>
+    <p style="margin-top:0.5rem;"><strong>Ihre Antworten</strong> werden automatisch in Ihrem Browser gespeichert (localStorage), solange Sie den Fragebogen nicht schließen. Sie können eine zuvor exportierte (auch teilweise ausgefüllte) YAML-Datei wieder importieren, um an ihr weiterzuarbeiten — das Versionsfeld wird dabei automatisch um eins erhöht, ist aber nur ein Indiz und kein Echtheitsnachweis.</p>
   </div>
 
   <div class="card">
@@ -43,8 +43,8 @@
       <input type="text" id="meta-befragte" placeholder="{{BEFRAGTER_LABEL}}">
     </div>
     <div class="form-group">
-      <label for="meta-version" class="required-label">Version</label>
-      <input type="text" id="meta-version" placeholder="z.B. 1">
+      <label for="meta-version">Version (optional, wird beim Import automatisch erhöht)</label>
+      <input type="text" id="meta-version" placeholder="0">
     </div>
   </div>
 

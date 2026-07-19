@@ -11,7 +11,7 @@ This file guides Claude Code (and other AI assistants) working in this repositor
 
 Umfrage-Manager: a locally run survey creation/management tool that replaces a manual Excel-based workflow. No server, no external network dependency at runtime. The distributed app is still a single file (`UmfrageManager.html`), but — as of the Phase 0 build-step refactor — that file is now a **generated build artifact**, not hand-edited source.
 
-This build-step introduction is "Phase 0" of a larger, separately-planned effort (see `plan-gitHubPageClient.md`) that will eventually add a YAML format change and a GitHub-Pages-hosted client. Those later phases have **not** been implemented yet — don't assume the answer/YAML format has changed, and don't assume a hosted client exists, until that work actually lands.
+This is part of a larger, separately-planned effort (see `plan-gitHubPageClient.md`): Phase 0 (build-step refactor) and Phase 1 (unified YAML format, breaking, `APP_VERSION` 2.0.0) are done. Phase 2 (GitHub-Pages-hosted client) and Phase 3 (Pages deploy workflow) have **not** been implemented yet — don't assume a hosted client exists until that work lands.
 
 ## Architecture
 
@@ -25,6 +25,10 @@ This build-step introduction is "Phase 0" of a larger, separately-planned effort
                                  escapeHtml, sanitizeFilename, triggerDownload,
                                  lsGet/lsSet/lsRemove/lsKeys, APP_VERSION,
                                  parseVersion/compareVersions
+              format.js       — unified YAML format module (see Data model
+                                 below): buildUnifiedSurvey/parseUnifiedSurvey,
+                                 question-ID sanitization/dedup, legacy-format
+                                 (< 2.0.0) detection/rejection
               base.css        — CSS rules identical in both UIs (reset, .card,
                                  label, .btn*, #ls-banner)
     manager/  manager.html    — manager document template (placeholders:
@@ -53,21 +57,26 @@ This build-step introduction is "Phase 0" of a larger, separately-planned effort
 
 ## Data model
 
-A survey (`Umfrage`) object: `{ uuid, bezeichnung, frist, bezeichner_label, app_version, fragen: [...] }`.
+**Since Phase 1 (`APP_VERSION` 2.0.0, breaking change), one unified YAML shape is used everywhere** — manager survey-definition export/import, the manager's single consolidated export button (which doubles as the HTML-client's input), and the HTML client's own answer export/import. This shape and its coercion/validation live in `src/shared/format.js` (`buildUnifiedSurvey`/`parseUnifiedSurvey`), not duplicated ad hoc per call site:
 
-Each question (`fragen[]`) has `{ id, typ, text }`, plus type-specific fields:
-- `typ: 'auswahl'` → `optionen: [...]`
-- `typ: 'zahl'` → `einheit`, `erlaubtDezimal`
-- `typ: 'freitext'`, `'ja_nein'` → no extra fields
+```
+{ uuid, bezeichnung, frist, bezeichner_label, app_version,
+  antwort_meta: { befragte, version, datum, notizen },
+  fragen: [ { id, typ, text, optionen?, einheit?, erlaubtDezimal?, antwort } ] }
+```
 
-Question IDs must match `/^[A-Za-z0-9_-]+$/`; duplicates are rejected.
+- `antwort` (per question) and `antwort_meta` are present but empty (`version: 0`) on a pure manager definition/client export; the HTML client fills them in on answer export.
+- `antwort_meta.version` is auto-incremented by the client every time it *imports* a YAML (e.g. a colleague's in-progress answers); it is **purely informational, never an integrity/authenticity signal** — don't add code that trusts it as such. `befragte` is the only required field for a valid answer export.
+- Files predating this format (old field names `umfrage_uuid`/`bezeichnung_umfrage`, a separate top-level `antworten` map, or `app_version` major < 2) are detected by `format.js` and **rejected with an explicit user-facing error** at every import entry point (manager definition import, manager answer import, client answer import) — never silently misinterpreted.
+- Each question (`fragen[]`) has `{ id, typ, text }`, plus type-specific fields: `typ: 'auswahl'` → `optionen: [...]`; `typ: 'zahl'` → `einheit`, `erlaubtDezimal`; `typ: 'freitext'`, `'ja_nein'` → no extra fields. Question IDs must match `/^[A-Za-z0-9_-]+$/`; duplicates get a `_2`/`_3`/… suffix (`sanitizeQuestionIds()` in `format.js`).
+- Manager answer-import also checks the imported file's `uuid` against the currently open survey and rejects (does not silently merge) a mismatch.
 
 ## Persistence
 
 Data lives only in browser `localStorage`, no server round-trip:
 - `umfrageManager.<uuid>.meta` — survey metadata
 - `umfrageManager.<uuid>.fragen` — questions array
-- `umfrageManager.<uuid>.antworten` — imported answers for that survey
+- `umfrageManager.<uuid>.antworten` — imported answers for that survey (an array of unified-format answer objects, see Data model above, since Phase 1)
 
 All access goes through `lsGet/lsSet/lsRemove/lsKeys` helpers wrapped in try/catch. When `localStorage` is unavailable (e.g. some `file://` configurations), the app shows the `#ls-banner` warning and silently doesn't persist — don't add code paths that assume persistence always succeeds.
 
@@ -75,10 +84,10 @@ All access goes through `lsGet/lsSet/lsRemove/lsKeys` helpers wrapped in try/cat
 
 This is the mechanism the app uses instead of a server:
 
-1. The manager exports a survey definition as **YAML** (`jsyaml.dump`), and can re-import one (`jsyaml.load`).
-2. `exportSurveyAsHtml()` generates a **second, fully standalone HTML file** — a respondent-facing "client" — with the survey JSON and the same vendored js-yaml baked in. This file is meant to be handed to survey respondents, who fill it out in their own browser with no server involved. The client's HTML/CSS/JS comes from the `src/client/` + `src/shared/` bundle that `build.py` pre-assembles into the manager's script (see Architecture above); `buildClientHtml()` only substitutes the survey JSON, CSP hashes, and the escaped title/label at export time.
-3. Respondents export their answers as a YAML file from that client.
-4. The manager re-imports those answer YAML files for aggregation and CSV export in the "Auswertung" (evaluation) tab.
+1. The manager has **one consolidated export button** that produces a single unified-format YAML file (`<bezeichnung>.yaml`, see Data model above) via `buildSurveyObject()` → `format.js`'s `buildUnifiedSurvey()`. This file serves double duty: manager→manager definition exchange (re-importable via `importSurveyYaml()`/`jsyaml.load`) *and* manager→respondent input for the hosted/YAML-only flow.
+2. `exportSurveyAsHtml()` generates a **second, fully standalone HTML file** — a respondent-facing "client" — with the same unified survey object (JSON) and the same vendored js-yaml baked in. This file is meant to be handed to survey respondents, who fill it out in their own browser with no server involved. The client's HTML/CSS/JS comes from the `src/client/` + `src/shared/` bundle (including `format.js`) that `build.py` pre-assembles into the manager's script (see Architecture above); `buildClientHtml()` only substitutes the survey JSON, CSP hashes, and the escaped title/label at export time — it calls the same `buildSurveyObject()` as the plain YAML export, so both exports always agree on shape.
+3. Respondents export their answers as a YAML file from that client (`antwort_meta` filled in, `antwort_meta.version` auto-incremented on every import into the client).
+4. The manager re-imports those answer YAML files for aggregation and CSV export in the "Auswertung" (evaluation) tab, reading each question's answer from `frage.antwort`.
 
 When touching this flow, keep the manager and client sources consistent — e.g., if the survey data shape changes, both `src/manager/manager.js` (rendering/export) and `src/client/client.js` (respondent-facing rendering/answers) need to agree on it. Any change to either bundle requires an `python3 build.py` rerun before the change takes effect in `UmfrageManager.html`.
 

@@ -432,22 +432,26 @@ function exportSurveyAsYaml() {
 }
 
 function buildSurveyObject() {
-  return {
+  const fragen = currentQuestions.map(q => {
+    const obj = { id: q.id, typ: q.typ, text: q.text };
+    if (q.typ === 'auswahl') obj.optionen = q.optionen || [];
+    if (q.typ === 'zahl') {
+      obj.einheit = q.einheit || '';
+      obj.erlaubtDezimal = !!q.erlaubtDezimal;
+    }
+    // Reines Definitions-/Client-Export: antwort-Feld vorhanden, aber leer
+    // (Einheitsformat, siehe src/shared/format.js).
+    obj.antwort = '';
+    return obj;
+  });
+  return buildUnifiedSurvey({
     uuid: document.getElementById('meta-uuid').value,
     bezeichnung: document.getElementById('meta-bezeichnung').value,
     frist: document.getElementById('meta-frist').value,
-    bezeichner_label: document.getElementById('meta-bezeichner-label').value || 'Hochschule',
-    app_version: APP_VERSION,
-    fragen: currentQuestions.map(q => {
-      const obj = { id: q.id, typ: q.typ, text: q.text };
-      if (q.typ === 'auswahl') obj.optionen = q.optionen || [];
-      if (q.typ === 'zahl') {
-        obj.einheit = q.einheit || '';
-        obj.erlaubtDezimal = !!q.erlaubtDezimal;
-      }
-      return obj;
-    })
-  };
+    bezeichnerLabel: document.getElementById('meta-bezeichner-label').value || 'Hochschule',
+    fragen,
+    antwortMeta: { befragte: '', version: 0, datum: '', notizen: '' }
+  });
 }
 
 // ============================================================
@@ -457,8 +461,13 @@ function importSurveyYaml(file) {
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
-      const data = jsyaml.load(e.target.result);
-      if (!data || typeof data !== 'object') throw new Error('Ungültiges YAML');
+      const raw = jsyaml.load(e.target.result);
+      // parseUnifiedSurvey() validiert/koerziert gegen das Einheitsformat
+      // (src/shared/format.js) und wirft bei Alt-Format (< 2.0.0) oder
+      // grob invalider Struktur einen Error mit verständlicher Meldung.
+      // withAnswers: false — beim Definitions-Import werden etwaige
+      // antwort-Felder ignoriert, nicht übernommen.
+      const data = parseUnifiedSurvey(raw, { withAnswers: false });
 
       const uuid = data.uuid || generateUUID();
       const existingUUIDs = getAllSurveyUUIDs();
@@ -477,34 +486,17 @@ function importSurveyYaml(file) {
 }
 
 function applyImportedSurvey(uuid, data) {
-  const fragen = (data.fragen || []).map((q, idx) => {
-    let id = String(q.id != null ? q.id : '').trim();
-    if (!/^[A-Za-z0-9_-]+$/.test(id)) id = 'f' + (idx + 1);
-    return {
-      id,
-      typ: q.typ || 'freitext',
-      text: String(q.text || ''),
-      ...(q.typ === 'auswahl' ? { optionen: (q.optionen || []).map(String) } : {}),
-      ...(q.typ === 'zahl' ? { einheit: String(q.einheit || ''), erlaubtDezimal: !!q.erlaubtDezimal } : {})
-    };
-  });
-  // Duplikate auflösen: bei Kollision wird die ID um einen Zähler ergänzt
-  const seen = new Set();
-  fragen.forEach((q, idx) => {
-    let id = q.id;
-    let n = 2;
-    while (seen.has(id)) { id = q.id + '_' + n; n++; }
-    q.id = id;
-    seen.add(id);
-  });
+  // data.fragen ist bereits über parseUnifiedSurvey()/coerceFragen() auf
+  // gültige, deduplizierte IDs sanitisiert (src/shared/format.js).
+  const fragen = data.fragen;
   const maxNum = fragen.reduce((max, q) => {
     const m = /^f(\d+)$/.exec(q.id);
     return m ? Math.max(max, +m[1]) : max;
   }, 0);
   saveSurveyMeta(uuid, {
-    bezeichnung: String(data.bezeichnung || ''),
-    frist: String(data.frist || ''),
-    bezeichner_label: String(data.bezeichner_label || 'Hochschule'),
+    bezeichnung: data.bezeichnung,
+    frist: data.frist,
+    bezeichner_label: data.bezeichner_label,
     naechsteFrageNummer: maxNum + 1
   });
   saveSurveyQuestions(uuid, fragen);
@@ -630,13 +622,27 @@ function importAnswerFiles(files) {
   if (pending === 0) return;
 
   const versionMismatches = [];
+  const rejectedFiles = [];
 
   for (const file of files) {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const data = jsyaml.load(e.target.result);
-        if (data && typeof data === 'object' && data.umfrage_uuid) {
+        const raw = jsyaml.load(e.target.result);
+        // parseUnifiedSurvey() lehnt Alt-Format-Dateien (< 2.0.0, alte
+        // Feldnamen umfrage_uuid/bezeichnung_umfrage/antworten-Map) mit
+        // einer aussagekräftigen Meldung ab, statt sie stumm falsch zu
+        // interpretieren. withAnswers: true — antwort-Felder je Frage
+        // werden übernommen (Einheitsformat, src/shared/format.js).
+        const data = parseUnifiedSurvey(raw, { withAnswers: true });
+
+        // uuid-Abgleich gegen die aktuell geöffnete Umfrage: eine Datei,
+        // die zu einer anderen Umfrage gehört, darf nicht stillschweigend
+        // mit eingemischt werden (siehe plan-gitHubPageClient.md,
+        // "Potential Conflicts & Issues").
+        if (currentUUID && data.uuid && data.uuid !== currentUUID) {
+          rejectedFiles.push(`${file.name}: gehört zu einer anderen Umfrage (Datei-UUID "${data.uuid}" ≠ geöffnete Umfrage) und wurde nicht übernommen.`);
+        } else {
           importedAnswers.push(data);
           if (data.app_version) {
             const diff = compareVersions(data.app_version, APP_VERSION);
@@ -644,8 +650,6 @@ function importAnswerFiles(files) {
               versionMismatches.push(`${file.name}: Datei-Version ${data.app_version} ≠ App-Version ${APP_VERSION}`);
             }
           }
-        } else {
-          alert(`Datei "${file.name}" konnte nicht importiert werden (keine gültige Antwort-Datei).`);
         }
       } catch(err) {
         alert(`Fehler beim Lesen von "${file.name}":\n${err.message}`);
@@ -657,8 +661,9 @@ function importAnswerFiles(files) {
         }
         renderAuswertung();
         const warningEl = document.getElementById('import-version-warning');
-        if (versionMismatches.length > 0) {
-          warningEl.textContent = 'Versions-Warnung — folgende Dateien weichen ab:\n' + versionMismatches.join('\n');
+        const messages = [...rejectedFiles, ...versionMismatches];
+        if (messages.length > 0) {
+          warningEl.textContent = messages.join('\n');
           warningEl.style.display = 'block';
         } else {
           warningEl.style.display = 'none';
@@ -685,7 +690,7 @@ function renderAuswertung() {
   result.style.display = 'flex';
 
   // Fragen bestimmen: lokale Umfrage + Union mit den in Antwort-Dateien eingebetteten Fragen
-  const firstUUID = importedAnswers[0].umfrage_uuid;
+  const firstUUID = importedAnswers[0].uuid;
   const surveyData = loadSurvey(firstUUID);
   const byId = new Map();
   (surveyData.fragen || []).forEach(q => byId.set(q.id, q));
@@ -698,10 +703,6 @@ function renderAuswertung() {
       }
     });
   });
-  if (byId.size === 0) {
-    // Fallback: Fragen aus den Antwortschlüsseln rekonstruieren (keine Fragendefinition verfügbar)
-    Object.keys(importedAnswers[0].antworten || {}).forEach(id => byId.set(id, { id, text: id, typ: 'freitext' }));
-  }
   const fragen = Array.from(byId.values());
 
   if (unionHappened) {
@@ -773,8 +774,9 @@ function renderAuswertung() {
     btnDown.disabled = idx === importedAnswers.length - 1;
     btnDown.addEventListener('click', () => reorderRespondents(idx, idx + 1));
 
+    const meta = ans.antwort_meta || {};
     const nameSpan = document.createElement('span');
-    nameSpan.textContent = `${ans.befragte || '?'} (v${ans.version || '?'})`;
+    nameSpan.textContent = `${meta.befragte || '?'} (v${meta.version != null ? meta.version : '?'})`;
 
     wrap.appendChild(btnUp);
     wrap.appendChild(btnDown);
@@ -782,9 +784,14 @@ function renderAuswertung() {
     tdBefragte.appendChild(wrap);
     tr.appendChild(tdBefragte);
 
+    // Einheitsformat: Antworten stehen als `antwort`-Feld je Frage in
+    // ans.fragen, nicht mehr in einer separaten antworten-Map.
+    const ansById = new Map((ans.fragen || []).map(q => [q.id, q]));
+
     fragen.forEach(q => {
       const td = document.createElement('td');
-      const val = (ans.antworten && ans.antworten[q.id] !== undefined) ? ans.antworten[q.id] : undefined;
+      const aq = ansById.get(q.id);
+      const val = (aq && aq.antwort !== undefined && aq.antwort !== '') ? aq.antwort : undefined;
       if (val === undefined) {
         td.textContent = '—';
       } else if (q.typ === 'zahl' && q.einheit) {
@@ -797,7 +804,7 @@ function renderAuswertung() {
 
     const tdNotizen = document.createElement('td');
     tdNotizen.style.fontStyle = 'italic';
-    tdNotizen.textContent = ans.notizen || '—';
+    tdNotizen.textContent = meta.notizen || '—';
     tr.appendChild(tdNotizen);
 
     tbody.appendChild(tr);
@@ -820,8 +827,8 @@ function reorderRespondents(fromIdx, toIdx) {
 function exportResultYaml() {
   if (importedAnswers.length === 0) return;
   const result = {
-    umfrage_uuid: importedAnswers[0].umfrage_uuid,
-    bezeichnung: importedAnswers[0].bezeichnung_umfrage || '',
+    uuid: importedAnswers[0].uuid,
+    bezeichnung: importedAnswers[0].bezeichnung || '',
     export_datum: new Date().toISOString().slice(0, 10),
     antworten: importedAnswers
   };
@@ -852,12 +859,15 @@ function exportResultCsv() {
 
   // Eine Zeile pro Befragte(r)
   importedAnswers.forEach(ans => {
-    const row = [`${ans.befragte || '?'} (v${ans.version || '?'})`];
+    const meta = ans.antwort_meta || {};
+    const row = [`${meta.befragte || '?'} (v${meta.version != null ? meta.version : '?'})`];
+    const ansById = new Map((ans.fragen || []).map(q => [q.id, q]));
     auswertungSurvey.fragen.forEach(q => {
-      const val = (ans.antworten && ans.antworten[q.id] !== undefined) ? ans.antworten[q.id] : '';
+      const aq = ansById.get(q.id);
+      const val = (aq && aq.antwort !== undefined) ? aq.antwort : '';
       row.push(String(val)); // bare Wert ohne Einheit, für Tabellenkalkulation
     });
-    row.push(ans.notizen || '');
+    row.push(meta.notizen || '');
     rows.push(row);
   });
 

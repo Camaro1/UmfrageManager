@@ -1,9 +1,13 @@
 // Respondentenseitiges Client-Skript (Fragebogen-Logik).
 // Nutzt die Helfer aus src/shared/common.js (escapeHtml [ungenutzt hier,
 // da ausschließlich textContent/createElement verwendet wird],
-// sanitizeFilename, triggerDownload, lsGet/lsSet/lsRemove/lsKeys), die
-// vom Build vor diesem Skript in denselben <script>-Block eingefügt werden.
-// Eingebettete Umfrage-Daten
+// sanitizeFilename, triggerDownload, lsGet/lsSet/lsRemove/lsKeys,
+// APP_VERSION, compareVersions) sowie das Einheitsformat-Modul
+// src/shared/format.js (buildUnifiedSurvey, parseUnifiedSurvey), die vom
+// Build vor diesem Skript in denselben <script>-Block eingefügt werden.
+// Eingebettete Umfrage-Daten (Einheitsformat, siehe src/shared/format.js:
+// enthält bereits antwort_meta und je Frage ein antwort-Feld, i. d. R.
+// leer, da der Manager sie beim Definitions-/Client-Export leer exportiert)
 const SURVEY = {{SURVEY_JSON}};
 
 const UUID = SURVEY.uuid;
@@ -11,15 +15,17 @@ const LS_PREFIX = 'umfrageClient.' + UUID;
 
 function loadAnswers() {
   const meta = lsGet(LS_PREFIX + '.meta');
-  if (meta) {
-    const m = JSON.parse(meta);
-    document.getElementById('meta-befragte').value = m.befragte || '';
-    document.getElementById('meta-version').value = m.version || '';
-    document.getElementById('meta-notizen').value = m.notizen || '';
-  }
+  // Ohne gespeicherten Fortschritt auf die im Client eingebetteten Werte
+  // zurückfallen (antwort_meta bzw. das antwort-Feld je Frage).
+  const m = meta ? JSON.parse(meta) : (SURVEY.antwort_meta || {});
+  document.getElementById('meta-befragte').value = m.befragte || '';
+  document.getElementById('meta-version').value = (m.version !== undefined && m.version !== null && m.version !== '') ? m.version : 0;
+  document.getElementById('meta-notizen').value = m.notizen || '';
+
   SURVEY.fragen.forEach(q => {
-    const val = lsGet(LS_PREFIX + '.' + q.id);
-    if (val === null) return;
+    const stored = lsGet(LS_PREFIX + '.' + q.id);
+    const val = stored !== null ? stored : (q.antwort || '');
+    if (!val) return;
     if (q.typ === 'freitext' || q.typ === 'zahl') {
       const el = document.getElementById('q-' + q.id);
       if (el) el.value = val;
@@ -136,38 +142,48 @@ function renderQuestions() {
 // ---- Export ----
 function exportAnswers() {
   const befragte = document.getElementById('meta-befragte').value.trim();
-  const version = document.getElementById('meta-version').value.trim();
-  if (!befragte || !version) {
-    alert('Bitte füllen Sie die Pflichtfelder aus (mit * markiert).');
+  // "befragte" bleibt Pflichtfeld für einen gültigen Antwort-Export;
+  // "version" ist inzwischen rein informativ (Auto-Inkrement beim
+  // Import) und daher kein Pflichtfeld mehr (Einheitsformat, siehe
+  // src/shared/format.js und plan-gitHubPageClient.md Entscheidung 4).
+  if (!befragte) {
+    alert('Bitte füllen Sie das Pflichtfeld aus (mit * markiert).');
     return;
   }
+  const version = document.getElementById('meta-version').value.trim();
   const notizen = document.getElementById('meta-notizen').value;
 
-  const antworten = {};
-  SURVEY.fragen.forEach(q => {
+  const fragen = SURVEY.fragen.map(q => {
+    let val = '';
     if (q.typ === 'freitext' || q.typ === 'zahl') {
       const el = document.getElementById('q-' + q.id);
-      antworten[q.id] = el ? el.value : '';
+      val = el ? el.value : '';
     } else {
       const el = document.querySelector('input[name="q-' + q.id + '"]:checked');
-      antworten[q.id] = el ? el.value : '';
+      val = el ? el.value : '';
     }
+    const obj = { id: q.id, typ: q.typ, text: q.text };
+    if (q.typ === 'auswahl') obj.optionen = q.optionen || [];
+    if (q.typ === 'zahl') {
+      obj.einheit = q.einheit || '';
+      obj.erlaubtDezimal = !!q.erlaubtDezimal;
+    }
+    obj.antwort = val;
+    return obj;
   });
 
-  const exportData = {
-    umfrage_uuid: UUID,
-    bezeichnung_umfrage: SURVEY.bezeichnung || '',
-    app_version: SURVEY.app_version || '',
-    befragte,
-    version,
-    datum: new Date().toISOString().slice(0, 10),
-    notizen,
-    fragen: SURVEY.fragen,
-    antworten
-  };
+  const exportData = buildUnifiedSurvey({
+    uuid: UUID,
+    bezeichnung: SURVEY.bezeichnung,
+    frist: SURVEY.frist,
+    bezeichnerLabel: SURVEY.bezeichner_label,
+    fragen,
+    antwortMeta: { befragte, version, datum: new Date().toISOString().slice(0, 10), notizen },
+    appVersion: APP_VERSION
+  });
 
   const yml = jsyaml.dump(exportData, { lineWidth: -1 });
-  const filename = sanitizeFilename(befragte) + '_v' + sanitizeFilename(version) + '.yaml';
+  const filename = sanitizeFilename(befragte) + '_v' + sanitizeFilename(String(version || 0)) + '.yaml';
   triggerDownload(yml, filename, 'application/x-yaml;charset=utf-8');
 }
 
@@ -176,30 +192,45 @@ function importAnswers(file) {
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
-      const data = jsyaml.load(e.target.result);
-      if (!data || typeof data !== 'object') throw new Error('Ungültiges YAML');
-      if (data.umfrage_uuid && data.umfrage_uuid !== UUID) {
-        alert('Diese Antwort-Datei gehört zu einer anderen Umfrage (UUID: ' + data.umfrage_uuid + ').');
+      const raw = jsyaml.load(e.target.result);
+      // parseUnifiedSurvey() lehnt Alt-Format-Dateien (< 2.0.0) mit einer
+      // aussagekräftigen Meldung ab, statt sie stumm falsch zu
+      // interpretieren (src/shared/format.js).
+      const data = parseUnifiedSurvey(raw, { withAnswers: true });
+
+      if (data.uuid && data.uuid !== UUID) {
+        alert('Diese Antwort-Datei gehört zu einer anderen Umfrage (UUID: ' + data.uuid + ').');
         return;
       }
-      // Felder befüllen
-      if (data.befragte !== undefined) document.getElementById('meta-befragte').value = data.befragte;
-      if (data.version !== undefined) document.getElementById('meta-version').value = data.version;
-      if (data.notizen !== undefined) document.getElementById('meta-notizen').value = data.notizen;
-
-      if (data.antworten) {
-        SURVEY.fragen.forEach(q => {
-          const val = data.antworten[q.id];
-          if (val === undefined || val === null) return;
-          if (q.typ === 'freitext' || q.typ === 'zahl') {
-            const el = document.getElementById('q-' + q.id);
-            if (el) el.value = val;
-          } else {
-            const els = document.querySelectorAll('input[name="q-' + q.id + '"]');
-            els.forEach(r => { r.checked = (r.value === String(val)); });
-          }
-        });
+      if (data.app_version) {
+        const diff = compareVersions(data.app_version, APP_VERSION);
+        if (diff === 'major' || diff === 'minor') {
+          alert('Hinweis: Diese Datei wurde mit einer anderen App-Version (' + data.app_version + ') erstellt als der aktuell verwendete Client (' + APP_VERSION + ').');
+        }
       }
+
+      // Felder befüllen
+      const meta = data.antwort_meta || {};
+      document.getElementById('meta-befragte').value = meta.befragte || '';
+      document.getElementById('meta-notizen').value = meta.notizen || '';
+      // Versionszähler: Auto-Inkrement bei jedem Import in den Client
+      // (rein informativ, editierbar, kein Integritäts-/Authentizitäts-
+      // nachweis — siehe plan-gitHubPageClient.md Entscheidung 4 und
+      // "Security Implications" #6).
+      const incomingVersion = Number.isFinite(+meta.version) ? +meta.version : 0;
+      document.getElementById('meta-version').value = incomingVersion + 1;
+
+      data.fragen.forEach(q => {
+        const val = q.antwort;
+        if (val === undefined || val === null || val === '') return;
+        if (q.typ === 'freitext' || q.typ === 'zahl') {
+          const el = document.getElementById('q-' + q.id);
+          if (el) el.value = val;
+        } else {
+          const els = document.querySelectorAll('input[name="q-' + q.id + '"]');
+          els.forEach(r => { r.checked = (r.value === String(val)); });
+        }
+      });
       saveAnswers();
     } catch(err) {
       alert('Fehler beim Importieren:\n' + err.message);

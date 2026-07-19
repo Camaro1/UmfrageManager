@@ -21,9 +21,15 @@ Der Ablauf kennt zwei Rollen und drei Dateiarten:
 
 | Datei | Zweck | Format |
 |-------|-------|--------|
-| Umfragedefinition | Sicherung/Transport einer Umfrage | YAML |
+| Umfrage-YAML | Sicherung/Transport einer Umfrage **und** Eingabedatei für den Client-Export | YAML |
 | Umfrage-Client | eigenständige Ausfüll-Datei für Teilnehmende | HTML |
 | Antwortdatei | eine ausgefüllte Antwort eines/einer Teilnehmenden | YAML |
+
+Seit Version 2.0.0 verwenden alle drei YAML-Austauschpunkte (Umfrage-Export/-Import im
+Manager, Client-Export/-Import) **dasselbe Dateiformat**: Antworten stehen direkt als
+`antwort`-Feld bei der jeweiligen Frage, ergänzt um einen `antwort_meta`-Block
+(`befragte`, `version`, `datum`, `notizen`). Dateien aus Versionen vor 2.0.0 werden beim
+Import mit einer klaren Fehlermeldung abgelehnt, nicht stillschweigend fehlinterpretiert.
 
 ---
 
@@ -80,9 +86,14 @@ Browser der Teilnehmenden.
 ## Workflow 3: Teilnehmende füllen den Client aus
 
 1. Teilnehmende öffnen die erhaltene Client-HTML-Datei im Browser.
-2. Sie tragen ihren **Bezeichner** ein und beantworten die Fragen.
-3. Sie **exportieren ihre Antworten als YAML-Datei** und geben diese an die Operator:in
-   zurück.
+2. Sie tragen ihren **Bezeichner** ein (Pflichtfeld) und beantworten die Fragen. Ein
+   Versionsfeld ist ebenfalls vorhanden, aber optional — es ist nur ein Indiz für den
+   Bearbeitungsstand und wird beim Import einer bereits begonnenen Antwortdatei (siehe
+   nächster Punkt) automatisch um eins erhöht.
+3. Sie **exportieren ihre Antworten als YAML-Datei** und geben diese entweder an die
+   nächste Person zum Weiterausfüllen oder an die Operator:in zurück. Eine bereits
+   begonnene Antwortdatei lässt sich im Client auch wieder **importieren**, um an ihr
+   weiterzuarbeiten.
 
 ## Workflow 4: Antworten auswerten
 
@@ -92,14 +103,19 @@ Browser der Teilnehmenden.
    auf einmal importiert werden.
    - Stimmt die in einer Datei eingebettete Version nicht mit der aktuellen App-Version
      überein, warnt die Anwendung (der Import bleibt möglich).
+   - Gehört eine Datei zu einer **anderen Umfrage** (abweichende UUID) oder wurde sie mit
+     einer **App-Version unterhalb von 2.0.0** erstellt, lehnt die Anwendung den Import
+     dieser Datei mit einer klaren Fehlermeldung ab.
 3. Die aggregierten Ergebnisse werden angezeigt.
 4. Optional die Ergebnisse als **CSV** exportieren (z. B. zur Weiterverarbeitung in einer
    Tabellenkalkulation). Werte werden dabei gegen Formula Injection abgesichert.
 
 ## Workflow 5: Umfragen sichern und übertragen
 
-- Eine Umfragedefinition lässt sich jederzeit als **YAML exportieren** und später wieder
+- Eine Umfrage lässt sich jederzeit als **YAML exportieren** und später wieder
   **importieren** — etwa zur Sicherung, zum Teilen oder zum Wechsel des Rechners.
+  Dieselbe Export-Datei dient zugleich als Eingabe für den HTML-Client-Export
+  (Einheitsformat, siehe „Rollen und Dateien" oben).
 - Beim Import einer bereits vorhandenen UUID fragt die Anwendung, wie mit dem Konflikt
   verfahren werden soll.
 

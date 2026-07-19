@@ -7,9 +7,9 @@ packages) — see plan-gitHubPageClient.md, "Build-Step (entschieden;
 Struktur)" and CLAUDE.md.
 
 What it does:
-  1. Reads src/shared/{js-yaml.min.js, common.js, base.css}, src/manager/
-     {manager.html, manager.js, manager.css} and src/client/{client.html,
-     client.js, client.css}.
+  1. Reads src/shared/{js-yaml.min.js, common.js, format.js, base.css},
+     src/manager/{manager.html, manager.js, manager.css} and src/client/
+     {client.html, client.js, client.css}.
   2. Builds the standalone client bundle (CLIENT_HTML_TEMPLATE and
      CLIENT_APP_SCRIPT_SRC) as JS string constants and prepends them to
      manager.js, so buildClientHtml() in the manager no longer duplicates
@@ -87,8 +87,9 @@ def build_client_bundle() -> tuple[str, str]:
     client_html = client_html.replace("{{STYLE}}", base_css + "\n" + client_css)
 
     common_js = read("shared/common.js")
+    format_js = read("shared/format.js")
     client_js = read("client/client.js")
-    client_app_script = common_js + "\n" + client_js
+    client_app_script = common_js + "\n" + format_js + "\n" + client_js
 
     return client_html, client_app_script
 
@@ -100,6 +101,7 @@ def build_manager_html() -> str:
     manager_js = read("manager/manager.js")
     jsyaml_src = read("shared/js-yaml.min.js")
     common_js = read("shared/common.js")
+    format_js = read("shared/format.js")
 
     client_html_template, client_app_script_src = build_client_bundle()
 
@@ -113,7 +115,7 @@ def build_manager_html() -> str:
         f"const CLIENT_APP_SCRIPT_SRC = `{to_js_template_literal(client_app_script_src)}`;\n"
     )
 
-    app_js = common_js + "\n" + client_bundle_consts + "\n" + manager_js
+    app_js = common_js + "\n" + format_js + "\n" + client_bundle_consts + "\n" + manager_js
     style = base_css + "\n" + manager_css
 
     manager_html = manager_html.replace("{{STYLE}}", style)
