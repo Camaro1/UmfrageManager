@@ -393,7 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // nur Beschreibung + Datei-Import/Drag-&-Drop anzeigen, bis eine
     // Umfrage erfolgreich importiert wurde (siehe loadSurveyFile()).
     document.getElementById('survey-view').style.display = 'none';
-    document.getElementById('start-view').style.display = '';
+    document.getElementById('start-view').style.display = 'flex';
     wireStartView();
   }
 
