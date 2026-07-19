@@ -1,0 +1,25 @@
+/* Client-specific CSS (see src/shared/base.css for rules shared with the manager). */
+
+    :root {
+      --bg: #f4f6f9; --surface: #ffffff; --border: #e2e8f0;
+      --primary: #4f46e5; --primary-hover: #4338ca;
+      --danger: #ef4444; --muted: #6b7280; --text: #1f2937; --radius: 8px;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    header { background: var(--primary); color: white; padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+    header h1 { font-size: 1.1rem; font-weight: 600; }
+    .header-meta { font-size: 0.8125rem; opacity: 0.85; }
+    .container { max-width: 720px; margin: 0 auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
+    .card-title { font-size: 0.75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; }
+    .form-group { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.75rem; }
+    input[type="text"], textarea { padding: 0.45rem 0.75rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.875rem; width: 100%; }
+    input:focus, textarea:focus { outline: none; border-color: var(--primary); }
+    .question-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; margin-bottom: 0.75rem; }
+    .question-text { font-weight: 600; margin-bottom: 0.75rem; }
+    .question-num { color: var(--primary); font-size: 0.875rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .radio-group, .choice-group { display: flex; flex-direction: column; gap: 0.5rem; }
+    .radio-label, .choice-label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem; }
+    .help-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--radius); padding: 1rem; font-size: 0.875rem; line-height: 1.6; display: none; }
+    .help-box h3 { margin-bottom: 0.5rem; color: var(--primary); }
+    .help-box ul { padding-left: 1.25rem; }
+    .required-label::after { content: " *"; color: var(--danger); }

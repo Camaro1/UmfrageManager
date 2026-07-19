@@ -1,0 +1,18 @@
+/* ============================================================
+   Shared base styles (used by both the manager UI and the
+   generated respondent-facing client).
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+label { font-size: 0.8125rem; font-weight: 500; color: var(--muted); }
+
+.btn { padding: 0.5rem 1rem; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 0.875rem; font-weight: 500; background: var(--surface); color: var(--text); transition: all 0.15s; }
+.btn:hover { background: var(--bg); }
+.btn-primary { background: var(--primary); color: white; border-color: var(--primary); }
+.btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+.btn-danger { color: var(--danger); border-color: var(--danger); }
+.btn-danger:hover { background: var(--danger); color: white; }
+.btn-bar { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+#ls-banner { background: #fef3c7; border-bottom: 1px solid #f59e0b; color: #92400e; padding: 0.5rem 1.5rem; font-size: 0.875rem; display: none; }

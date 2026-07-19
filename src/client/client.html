@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta http-equiv="Content-Security-Policy" content="{{CSP}}">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{TITLE}}</title>
+  <style>
+{{STYLE}}
+  </style>
+</head>
+<body>
+<div id="ls-banner">⚠️ localStorage ist nicht verfügbar. Antworten werden nicht gespeichert.</div>
+<header>
+  <div>
+    <h1 id="survey-title"></h1>
+    <div class="header-meta" id="survey-frist"></div>
+  </div>
+  <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+    <button class="btn" style="background:rgba(255,255,255,0.15); border-color:rgba(255,255,255,0.3); color:white;" id="btn-help">?</button>
+  </div>
+</header>
+
+<div class="container">
+  <div class="help-box" id="help-box">
+    <h3>Umfrage-Client — Hilfe</h3>
+    <p><strong>Was ist das?</strong> Dieses Dokument ist ein digitaler Fragebogen. Sie können ihn direkt in Ihrem Browser ausfüllen.</p>
+    <p style="margin-top:0.5rem;"><strong>Pflichtfelder</strong> sind mit <span style="color:var(--danger);">*</span> markiert und müssen ausgefüllt sein, bevor Sie exportieren können.</p>
+    <p style="margin-top:0.5rem;"><strong>Wie funktioniert es?</strong></p>
+    <ul>
+      <li>Füllen Sie die Pflichtfelder (Hochschule/Bezeichnung und Version) aus.</li>
+      <li>Beantworten Sie alle Fragen.</li>
+      <li>Klicken Sie auf <strong>Antworten exportieren (YAML)</strong> — eine YAML-Datei wird heruntergeladen.</li>
+      <li>Senden Sie diese YAML-Datei zurück an die Person, die Ihnen den Fragebogen geschickt hat.</li>
+    </ul>
+    <p style="margin-top:0.5rem;"><strong>Ihre Antworten</strong> werden automatisch in Ihrem Browser gespeichert (localStorage), solange Sie den Fragebogen nicht schließen. Sie können einen vorherigen Export auch wieder importieren.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Allgemeine Angaben</div>
+    <div class="form-group">
+      <label for="meta-befragte" class="required-label">{{BEFRAGTER_LABEL}}</label>
+      <input type="text" id="meta-befragte" placeholder="{{BEFRAGTER_LABEL}}">
+    </div>
+    <div class="form-group">
+      <label for="meta-version" class="required-label">Version</label>
+      <input type="text" id="meta-version" placeholder="z.B. 1">
+    </div>
+  </div>
+
+  <div id="questions-container"></div>
+
+  <div class="card">
+    <div class="card-title">Notizen &amp; Anmerkungen</div>
+    <textarea id="meta-notizen" rows="4" placeholder="Freitext für allgemeine Anmerkungen…" style="resize:vertical;"></textarea>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Aktionen</div>
+    <div class="btn-bar">
+      <button class="btn btn-primary" id="btn-export">Antworten exportieren (YAML)</button>
+      <label class="btn" style="cursor:pointer;">
+        Antworten importieren
+        <input type="file" accept=".yaml,.yml" style="display:none;" id="import-answers">
+      </label>
+      <button class="btn btn-danger" id="btn-clear-survey">Daten dieser Umfrage löschen</button>
+      <button class="btn btn-danger" id="btn-clear-all">Alle Client-Daten löschen</button>
+    </div>
+  </div>
+</div>
+
+<script id="jsyaml-src">{{JSYAML}}</script>
+<script>{{APP_SCRIPT}}</script>
+</body>
+</html>

@@ -17,6 +17,13 @@ Die hier genannten Versionen entsprechen `APP_VERSION` in `UmfrageManager.html`.
   auf die vollständigen Artefakte ergänzt; `README.md` entsprechend verlinkt.
 - Lizenzhinweis zur eingebetteten Bibliothek js-yaml 4.1.0 (MIT) in `README.md`
   präzisiert.
+- Internes Refactoring (kein Verhaltensunterschied, kein `APP_VERSION`-Bump):
+  `UmfrageManager.html` wird jetzt aus Quelldateien unter `src/` per
+  `build.py` (Python-3-Standardbibliothek, ohne Abhängigkeiten) generiert;
+  die zuvor doppelt gepflegte Client-Logik (HTML/CSS/JS des exportierten
+  Umfrage-Clients) stammt jetzt aus einer einzigen Quelle unter
+  `src/client/`, und die CSP-Hashes des Managers werden automatisch vom
+  Build berechnet statt manuell gepflegt zu werden.
 
 ## [1.0.1] – 2026-07-10
 

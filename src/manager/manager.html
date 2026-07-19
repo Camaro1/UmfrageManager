@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: MIT
+     Umfrage-Manager
+     Licensed under the MIT License. See LICENSE file for details. -->
+<html lang="de">
+<head>
+  <meta http-equiv="Content-Security-Policy" content="{{CSP}}">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Umfrage-Manager</title>
+  <style>
+{{STYLE}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Umfrage-Manager</h1>
+    <span id="app-version-display"></span>
+  </header>
+
+  <div id="ls-banner">
+    ⚠️ localStorage ist in dieser Browser-Konfiguration nicht verfügbar (file://-Protokoll). Eingaben werden nicht gespeichert.
+  </div>
+
+  <div class="app-body">
+    <aside>
+      <div class="sidebar-header">
+        <h2>Umfragen</h2>
+        <button id="btn-new-survey">+ Neue Umfrage</button>
+      </div>
+      <div id="survey-list"></div>
+    </aside>
+
+    <main>
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="editor">Editor</button>
+        <button class="tab-btn" data-tab="auswertung">Auswertung</button>
+      </div>
+
+      <!-- Editor Tab -->
+      <div id="tab-editor" class="tab-pane active">
+        <div id="editor-empty" class="empty-state">
+          <p>Wählen Sie eine Umfrage aus der Liste oder legen Sie eine neue an.</p>
+        </div>
+        <div id="editor-form" style="display:none; flex-direction:column; gap:1rem;">
+          <div class="card">
+            <div class="card-title">Metadaten</div>
+            <div class="form-row">
+              <div class="form-group" style="max-width:320px;">
+                <label for="meta-uuid">UUID</label>
+                <input type="text" id="meta-uuid" readonly>
+              </div>
+              <div class="form-group">
+                <label for="meta-bezeichnung">Bezeichnung</label>
+                <input type="text" id="meta-bezeichnung" placeholder="z.B. Mitarbeiterbefragung Q3 2025">
+              </div>
+              <div class="form-group" style="max-width:200px;">
+                <label for="meta-frist">Frist</label>
+                <input type="date" id="meta-frist">
+              </div>
+              <div class="form-group" style="max-width:220px;">
+                <label for="meta-bezeichner-label">Bezeichner-Label</label>
+                <input type="text" id="meta-bezeichner-label" placeholder="Hochschule">
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Fragen</div>
+            <div id="question-list"></div>
+            <div style="margin-top:0.75rem;">
+              <button class="btn" id="btn-add-question">+ Frage hinzufügen</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Aktionen</div>
+            <div class="btn-bar">
+              <button class="btn btn-primary" id="btn-save">Speichern</button>
+              <button class="btn" id="btn-export-yaml">Als YAML exportieren</button>
+              <button class="btn" id="btn-export-html">Als HTML exportieren (Umfrage-Client)</button>
+              <label class="btn" style="cursor:pointer;">
+                YAML importieren
+                <input type="file" accept=".yaml,.yml" style="display:none;" id="import-yaml-input">
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Auswertung Tab -->
+      <div id="tab-auswertung" class="tab-pane">
+        <div class="card">
+          <div class="card-title">Antwort-Dateien importieren</div>
+          <p style="font-size:0.875rem; color:var(--muted); margin-bottom:0.75rem;">
+            Wählen Sie eine oder mehrere YAML-Antwortdateien aus.
+          </p>
+          <div class="btn-bar">
+            <label class="btn btn-primary" style="cursor:pointer;">
+              Dateien auswählen
+              <input type="file" accept=".yaml,.yml" multiple style="display:none;" id="import-answers-input">
+            </label>
+            <button class="btn btn-danger" id="btn-clear-answers">Ergebnisse leeren</button>
+          </div>
+        </div>
+
+        <div id="import-version-warning" class="warning-banner" style="display:none;"></div>
+
+        <div id="auswertung-result" style="display:none; flex-direction:column; gap:1rem;">
+          <div id="auswertung-warning" class="warning-banner" style="display:none;"></div>
+          <div class="card">
+            <div class="card-title">Ergebnisse</div>
+            <div class="table-wrapper">
+              <table id="result-table">
+                <thead id="result-thead"></thead>
+                <tbody id="result-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Exportieren</div>
+            <div class="btn-bar">
+              <button class="btn" id="btn-export-result-yaml">Als YAML exportieren</button>
+              <button class="btn" id="btn-export-result-csv">Als CSV exportieren (Excel)</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="auswertung-empty" class="empty-state">
+          <p>Importieren Sie Antwort-Dateien, um die Ergebnisse anzuzeigen.</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- UUID-Konflikt Dialog -->
+  <div id="modal-uuid-conflict" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <h3>UUID-Konflikt</h3>
+      <p id="modal-conflict-msg">Eine Umfrage mit dieser UUID existiert bereits. Was möchten Sie tun?</p>
+      <div class="btn-bar">
+        <button class="btn" id="modal-conflict-overwrite">Überschreiben</button>
+        <button class="btn btn-primary" id="modal-conflict-new-uuid">Neue UUID vergeben</button>
+        <button class="btn" id="modal-conflict-cancel">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Löschen-Bestätigung -->
+  <div id="modal-delete" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <h3>Umfrage löschen</h3>
+      <p id="modal-delete-msg">Soll diese Umfrage wirklich gelöscht werden?</p>
+      <div class="btn-bar">
+        <button class="btn" id="modal-delete-cancel">Abbrechen</button>
+        <button class="btn btn-danger" id="modal-delete-confirm">Löschen</button>
+      </div>
+    </div>
+  </div>
+
+  <footer style="text-align:center; padding:0.75rem; font-size:0.75rem; color:var(--muted); border-top:1px solid var(--border); background:var(--surface);">
+    Umfrage-Manager — Open-Source-Software, lizenziert unter der
+    <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener" style="color:var(--primary);">MIT-Lizenz</a>
+  </footer>
+
+
+  <script id="jsyaml-src">{{JSYAML}}</script>
+<script>
+{{APP_JS}}
+</script>
+</body>
+</html>
